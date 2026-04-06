@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Database, 
@@ -25,7 +25,8 @@ import {
   Lightbulb,
   CheckCircle2,
   LogOut,
-  LogIn
+  LogIn,
+  Upload
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -43,7 +44,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { db, auth } from './firebase';
+import { db, auth, storage } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -54,7 +55,8 @@ import {
   getDocs,
   getDocFromServer,
   addDoc,
-  serverTimestamp
+  serverTimestamp,
+  updateDoc
 } from 'firebase/firestore';
 import { 
   onAuthStateChanged, 
@@ -63,6 +65,7 @@ import {
   signOut,
   User
 } from 'firebase/auth';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 // --- Types ---
 enum OperationType {
@@ -93,6 +96,65 @@ interface FirestoreErrorInfo {
   }
 }
 
+// --- Error Boundary ---
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  errorInfo: string | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorInfo: error instanceof Error ? error.message : String(error) };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let displayMessage = "Terjadi kesalahan yang tidak terduga.";
+      try {
+        const parsed = JSON.parse(this.state.errorInfo || '{}');
+        if (parsed.error && parsed.error.includes('Missing or insufficient permissions')) {
+          displayMessage = "Izin ditolak. Anda mungkin tidak memiliki akses ke data ini.";
+        }
+      } catch (e) {
+        // Not JSON
+      }
+
+      return (
+        <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-3xl border border-black/10 shadow-xl max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <X className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-black mb-2">Waduh, Ada Masalah!</h2>
+            <p className="text-zinc-500 mb-6">{displayMessage}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-black text-white rounded-xl font-bold hover:bg-zinc-800 transition-colors"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -118,7 +180,7 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 
 // --- Components ---
 
-const LoginPage = () => {
+const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -127,7 +189,16 @@ const LoginPage = () => {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      // Add Google Drive scope - using full drive scope to allow writing to existing folders
+      provider.addScope('https://www.googleapis.com/auth/drive');
+      
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      
+      if (token) {
+        onLoginSuccess(token);
+      }
     } catch (err: any) {
       setError('Gagal masuk dengan Google. Silakan coba lagi.');
       console.error(err);
@@ -201,7 +272,7 @@ const LoginPage = () => {
   );
 };
 
-const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }: any) => {
+const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'datacenter', label: 'Pusat Data', icon: Database },
@@ -209,6 +280,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }: any) => {
     { id: 'workhub', label: 'Work Hub', icon: Calendar },
     { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: ShieldCheck },
   ];
+
+  if (isAdmin) {
+    menuItems.push({ id: 'usermanagement', label: 'Manajemen User', icon: Users });
+  }
 
   return (
     <>
@@ -285,44 +360,100 @@ const Dashboard = ({ user }: { user: any }) => {
   const [loading, setLoading] = useState(true);
   const [requestCount, setRequestCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
+  const [docCount, setDocCount] = useState(0);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [pieData, setPieData] = useState<any[]>([]);
 
   const isAdmin = user?.email === 'saininda@gmail.com';
 
   useEffect(() => {
     // Listen to static stats
-    const q = query(collection(db, 'stats'), orderBy('order', 'asc'));
-    const unsubscribeStats = onSnapshot(q, (snapshot) => {
-      const statsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setStats(statsData);
+    const qStats = query(collection(db, 'stats'), orderBy('order', 'asc'));
+    const unsubscribeStats = onSnapshot(qStats, (snapshot) => {
+      setStats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'stats');
-      setLoading(false);
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'stats');
+      }
     });
 
-    // Listen to real requests count
+    // Listen to real requests
     const unsubscribeRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
+      const requests = snapshot.docs.map(doc => doc.data());
       setRequestCount(snapshot.size);
+      
+      // Calculate chart data (last 6 months)
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+      const monthlyData = months.map(month => ({
+        name: month,
+        data: 0, // Will be filled by documents
+        requests: requests.filter(r => {
+          const date = new Date(r.createdAt);
+          return date.toLocaleString('default', { month: 'short' }) === month;
+        }).length
+      }));
+      setChartData(prev => monthlyData.map((m, i) => ({ ...m, data: prev[i]?.data || 0 })));
+    }, (error) => {
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'requests');
+      }
+    });
+
+    // Listen to real documents
+    const unsubscribeDocs = onSnapshot(collection(db, 'documents'), (snapshot) => {
+      const docs = snapshot.docs.map(doc => doc.data());
+      setDocCount(snapshot.size);
+
+      // Update chart data with document counts
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+      setChartData(prev => months.map((month, i) => ({
+        ...prev[i],
+        name: month,
+        data: docs.filter(d => {
+          const date = new Date(d.createdAt);
+          return date.toLocaleString('default', { month: 'short' }) === month;
+        }).length
+      })));
+
+      // Calculate pie data
+      const categories: any = {};
+      docs.forEach(d => {
+        categories[d.category] = (categories[d.category] || 0) + 1;
+      });
+      const newPieData = Object.keys(categories).map(cat => ({
+        name: cat,
+        value: categories[cat]
+      }));
+      setPieData(newPieData.length > 0 ? newPieData : [
+        { name: 'Belum Ada Data', value: 1 }
+      ]);
+    }, (error) => {
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'documents');
+      }
     });
 
     // Listen to real staff count
     const unsubscribeStaff = onSnapshot(collection(db, 'users'), (snapshot) => {
       setStaffCount(snapshot.size);
+    }, (error) => {
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'users');
+      }
     });
 
     return () => {
       unsubscribeStats();
       unsubscribeRequests();
+      unsubscribeDocs();
       unsubscribeStaff();
     };
   }, []);
 
   const seedStats = async () => {
     const initialStats = [
-      { label: 'Total Dokumen', value: '1,284', icon: 'Database', color: 'bg-yellow-400', order: 1 },
+      { label: 'Total Dokumen', value: '0', icon: 'Database', color: 'bg-yellow-400', order: 1, isDynamic: true, dynamicKey: 'docs' },
       { label: 'Permintaan Data', value: '0', icon: 'FileText', color: 'bg-black text-white', order: 2, isDynamic: true, dynamicKey: 'requests' },
       { label: 'Staf Aktif', value: '0', icon: 'Users', color: 'bg-zinc-100', order: 3, isDynamic: true, dynamicKey: 'staff' },
       { label: 'Efisiensi Kerja', value: '94%', icon: 'Zap', color: 'bg-yellow-100', order: 4 },
@@ -352,25 +483,10 @@ const Dashboard = ({ user }: { user: any }) => {
     if (stat.isDynamic) {
       if (stat.dynamicKey === 'requests') return requestCount.toString();
       if (stat.dynamicKey === 'staff') return staffCount.toString();
+      if (stat.dynamicKey === 'docs') return docCount.toString();
     }
     return stat.value;
   };
-
-  const data = [
-    { name: 'Jan', data: 400, requests: 240 },
-    { name: 'Feb', data: 300, requests: 139 },
-    { name: 'Mar', data: 200, requests: 980 },
-    { name: 'Apr', data: 278, requests: 390 },
-    { name: 'May', data: 189, requests: 480 },
-    { name: 'Jun', data: 239, requests: 380 },
-  ];
-
-  const pieData = [
-    { name: 'Kepegawaian', value: 400 },
-    { name: 'Pembinaan', value: 300 },
-    { name: 'Informasi', value: 300 },
-    { name: 'Umum', value: 200 },
-  ];
 
   const COLORS = ['#000000', '#FACC15', '#71717A', '#A1A1AA'];
 
@@ -430,15 +546,15 @@ const Dashboard = ({ user }: { user: any }) => {
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="data" fill="#FACC15" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="requests" fill="#000000" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="data" name="Input Dokumen" fill="#FACC15" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="requests" name="Permintaan Data" fill="#000000" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -482,20 +598,453 @@ const Dashboard = ({ user }: { user: any }) => {
   );
 };
 
-const DataCenter = () => {
+const ACTIVITY_CODES: Record<string, { code: string; label: string }[]> = {
+  'Informasi Pegawai': [
+    { code: '01', label: 'Data Identitas dan Profil Pegawai' },
+    { code: '02', label: 'Data Laporan LHKPN' },
+    { code: '03', label: 'Data lainnya terkait informasi' },
+  ],
+  'Pengadaan Pegawai': [
+    { code: '01', label: 'data penyusunan formasi dan kebutuhan' },
+    { code: '02', label: 'data pelaksanaan dan seleksi CPNS dan PPPK' },
+    { code: '03', label: 'Data Pengusulan NIP' },
+    { code: '04', label: 'data pengangkatan dan penetapan NIP' },
+    { code: '05', label: 'data lainnya terkait pengadaan' },
+  ],
+  'Kinerja Pegawai': [
+    { code: '01', label: 'data rekapitulasi absen' },
+    { code: '02', label: 'data capaian SKP kinerja pegawai' },
+    { code: '03', label: 'data cuti pegawai' },
+    { code: '04', label: 'data kasus indisipliner' },
+    { code: '05', label: 'data usukan satya lencana' },
+    { code: '06', label: 'data lainnya terkait kinerja pegawai' },
+  ],
+  'Arsip Digital': [
+    { code: '01', label: 'Arsip Umum' }
+  ]
+};
+
+const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string) => void }) => {
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newDoc, setNewDoc] = useState({ 
+    name: '', 
+    category: 'Pengadaan Pegawai', 
+    activityCode: '01',
+    year: new Date().getFullYear().toString(),
+    updateDate: new Date().toISOString().split('T')[0],
+    size: '' 
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
+
+  useEffect(() => {
+    const q = query(collection(db, 'documents'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setDocuments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'documents');
+    });
+    return () => unsubscribe();
+  }, []);
+
   const categories = [
-    { name: 'Pengadaan Pegawai', count: 450, icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
-    { name: 'Informasi Pegawai', count: 820, icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
-    { name: 'Kinerja Pegawai', count: 120, icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
-    { name: 'Arsip Digital', count: 2400, icon: Database, url: 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID_4' },
+    { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
+    { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
+    { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
+    { name: 'Arsip Digital', icon: Database, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' }, // Fallback to Informasi Pegawai folder for now
   ];
+
+  const getFolderId = (url: string) => {
+    const match = url.match(/folders\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+  };
+
+  const handleConnectDrive = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/drive');
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if (token) {
+        setGoogleAccessToken(token);
+      }
+    } catch (error) {
+      console.error('Error connecting to Drive:', error);
+      alert('Gagal menghubungkan ke Google Drive.');
+    }
+  };
+
+  const uploadToGoogleDrive = async (file: File, fileName: string, folderId: string, accessToken: string) => {
+    const metadata = {
+      name: fileName,
+      parents: [folderId],
+    };
+
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    formData.append('file', file);
+
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Gagal mengunggah ke Google Drive');
+    }
+
+    return await response.json();
+  };
+
+  const handleAddDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      alert('Silakan pilih file terlebih dahulu.');
+      return;
+    }
+
+    if (!googleAccessToken) {
+      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+    setErrorMessage(null);
+    
+    let finalUrl = '';
+    let fileSize = '';
+    let driveFileId = '';
+
+    try {
+      console.log('Memulai proses upload ke Google Drive untuk:', file.name);
+      const fileExtension = file.name.split('.').pop();
+      const sanitizedDesc = newDoc.name.replace(/[^a-z0-9]/gi, '-').toUpperCase();
+      const customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${newDoc.updateDate}.${fileExtension}`;
+
+      const categoryObj = categories.find(c => c.name === newDoc.category);
+      const folderId = categoryObj ? getFolderId(categoryObj.url) : null;
+
+      if (!folderId) {
+        throw new Error('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
+      }
+
+      // Simulate progress for Drive upload (since fetch doesn't provide progress easily without XHR)
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
+      }, 500);
+
+      const driveResult = await uploadToGoogleDrive(file, customFileName, folderId, googleAccessToken);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      finalUrl = driveResult.webViewLink;
+      driveFileId = driveResult.id;
+      fileSize = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+
+      setUploadStatus('saving');
+      await addDoc(collection(db, 'documents'), {
+        ...newDoc,
+        fileName: customFileName,
+        driveFileId,
+        url: finalUrl,
+        size: fileSize,
+        createdAt: new Date().toISOString(),
+        uploadedBy: user.uid,
+        uploaderName: user.displayName
+      });
+      
+      setUploadStatus('success');
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setUploadStatus('idle');
+        setNewDoc({ 
+          name: '', 
+          category: 'Pengadaan Pegawai', 
+          activityCode: '01',
+          year: new Date().getFullYear().toString(),
+          updateDate: new Date().toISOString().split('T')[0],
+          size: '' 
+        });
+        setFile(null);
+        setUploadProgress(0);
+      }, 1500);
+    } catch (error: any) {
+      setUploadStatus('error');
+      let msg = error.message || 'Gagal mengunggah dokumen.';
+      
+      if (msg.includes('Insufficient permissions') || msg.includes('403')) {
+        msg = 'Izin Ditolak: Pastikan Anda memiliki akses tulis ke folder Google Drive tujuan dan sudah memberikan izin penuh saat login.';
+      }
+      
+      setErrorMessage(msg);
+      console.error('Upload Error:', msg);
+      
+      // If token is expired or invalid, clear it
+      if (error.message?.includes('invalid') || error.message?.includes('expired') || error.message?.includes('Insufficient permissions')) {
+        sessionStorage.removeItem('google_drive_token');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredDocs = documents.filter(doc => 
+    doc.name.toLowerCase().includes(search.toLowerCase()) ||
+    doc.category.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const getCategoryCount = (catName: string) => {
+    return documents.filter(d => d.category === catName).length;
+  };
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-      <header>
-        <h1 className="text-4xl font-black text-black tracking-tight">PUSAT DATA DIGITAL</h1>
-        <p className="text-zinc-500 mt-2">Akses cepat ke seluruh repositori data Bidang PIK-P.</p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tight">PUSAT DATA DIGITAL</h1>
+          <p className="text-zinc-500 mt-2">Kelola dokumen dan arsip kepegawaian secara terintegrasi dengan Google Drive.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {!googleAccessToken ? (
+            <button 
+              onClick={handleConnectDrive}
+              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-zinc-200 text-zinc-600 font-bold rounded-2xl hover:border-yellow-400 hover:text-black transition-all shadow-sm"
+            >
+              <div className="w-5 h-5 flex items-center justify-center">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" alt="Drive" className="w-full h-full" />
+              </div>
+              HUBUNGKAN DRIVE
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 text-xs font-bold rounded-xl border border-green-100">
+              <CheckCircle2 size={14} /> TERHUBUNG KE DRIVE
+            </div>
+          )}
+          {isAuthorized && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+            >
+              <PlusCircle size={20} /> TAMBAH DOKUMEN
+            </button>
+          )}
+        </div>
       </header>
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-black">Tambah Dokumen Baru</h3>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <form onSubmit={handleAddDocument} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                {!googleAccessToken && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                    <Info className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Drive Belum Terhubung</p>
+                      <p className="text-[10px] text-amber-700 leading-relaxed">Anda harus menghubungkan akun ke Google Drive sebelum dapat mengunggah dokumen.</p>
+                      <button 
+                        type="button"
+                        onClick={handleConnectDrive}
+                        className="text-[10px] font-black text-amber-900 underline underline-offset-2 hover:text-amber-600"
+                      >
+                        HUBUNGKAN SEKARANG
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Upload File (Wajib)</label>
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      onChange={e => {
+                        const selectedFile = e.target.files?.[0] || null;
+                        setFile(selectedFile);
+                        if (selectedFile) {
+                          // Pre-fill name if empty
+                          if (!newDoc.name) {
+                            const nameWithoutExt = selectedFile.name.split('.').slice(0, -1).join('.');
+                            setNewDoc(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
+                          }
+                        }
+                      }}
+                      className="hidden"
+                      id="file-upload"
+                      required
+                    />
+                    <label 
+                      htmlFor="file-upload"
+                      className={cn(
+                        "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
+                        file ? "border-green-400 bg-green-50" : "border-zinc-200 hover:border-yellow-400 hover:bg-yellow-50"
+                      )}
+                    >
+                      <Upload className={file ? "text-green-500" : "text-zinc-400"} size={24} />
+                      <span className="text-sm font-medium text-zinc-600 text-center">
+                        {file ? file.name : 'Klik untuk pilih file atau seret ke sini'}
+                      </span>
+                      <span className="text-xs text-zinc-400">Mendukung semua jenis file</span>
+                    </label>
+                  </div>
+                  
+                  {isSubmitting && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                        <span className={cn(
+                          "transition-colors",
+                          uploadStatus === 'error' ? "text-red-500" : "text-zinc-500"
+                        )}>
+                          {uploadStatus === 'uploading' ? `Mengunggah... ${uploadProgress}%` : 
+                           uploadStatus === 'saving' ? 'Menyimpan Data...' : 
+                           uploadStatus === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan'}
+                        </span>
+                        <span className="text-yellow-600">{uploadProgress}%</span>
+                      </div>
+                      <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden border border-zinc-200">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${uploadProgress}%` }}
+                          className={cn(
+                            "h-full transition-all duration-300",
+                            uploadStatus === 'success' ? "bg-green-500" : 
+                            uploadStatus === 'error' ? "bg-red-500" : "bg-yellow-400"
+                          )}
+                        />
+                      </div>
+                      {uploadStatus === 'error' && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1">
+                          {errorMessage || 'Gagal mengunggah. Coba lagi atau hubungi admin.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kategori</label>
+                    <select 
+                      value={newDoc.category}
+                      onChange={e => {
+                        const cat = e.target.value;
+                        setNewDoc({...newDoc, category: cat, activityCode: ACTIVITY_CODES[cat]?.[0]?.code || '01'});
+                      }}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    >
+                      {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kode Kegiatan</label>
+                    <select 
+                      value={newDoc.activityCode}
+                      onChange={e => setNewDoc({...newDoc, activityCode: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    >
+                      {ACTIVITY_CODES[newDoc.category]?.map(item => (
+                        <option key={item.code} value={item.code}>{item.code} - {item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tahun Dokumen</label>
+                    <input 
+                      required
+                      type="number" 
+                      value={newDoc.year}
+                      onChange={e => setNewDoc({...newDoc, year: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                      placeholder="Contoh: 2024"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal Update</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={newDoc.updateDate}
+                      onChange={e => setNewDoc({...newDoc, updateDate: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Deskripsi Data (Nama Dokumen)</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={newDoc.name}
+                    onChange={e => setNewDoc({...newDoc, name: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    placeholder="Contoh: SK KENAIKAN PANGKAT"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Ukuran File (Opsional)</label>
+                  <input 
+                    type="text" 
+                    value={newDoc.size}
+                    onChange={e => setNewDoc({...newDoc, size: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    placeholder="Contoh: 2.4 MB"
+                  />
+                </div>
+                <button 
+                  disabled={isSubmitting}
+                  className={cn(
+                    "w-full py-4 text-white font-black rounded-2xl transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2",
+                    uploadStatus === 'success' ? "bg-green-500" : 
+                    uploadStatus === 'error' ? "bg-red-500" : "bg-black hover:bg-zinc-800"
+                  )}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {uploadStatus === 'uploading' ? 'Mengunggah...' : 'Menyimpan...'}
+                    </>
+                  ) : uploadStatus === 'success' ? (
+                    <>
+                      <CheckCircle2 size={20} /> BERHASIL DISIMPAN
+                    </>
+                  ) : 'SIMPAN DOKUMEN'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {categories.map((cat, i) => (
@@ -509,7 +1058,7 @@ const DataCenter = () => {
               <cat.icon size={24} />
             </div>
             <h3 className="font-bold text-lg">{cat.name}</h3>
-            <p className="text-sm text-zinc-400 mt-1">{cat.count} File Tersimpan</p>
+            <p className="text-sm text-zinc-400 mt-1">{getCategoryCount(cat.name)} File Tersimpan</p>
             <div className="mt-4 flex items-center text-xs font-bold text-yellow-600 uppercase tracking-wider">
               Buka Folder <ChevronRight size={14} />
             </div>
@@ -525,6 +1074,8 @@ const DataCenter = () => {
             <input 
               type="text" 
               placeholder="Cari dokumen..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
               className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
             />
           </div>
@@ -533,36 +1084,64 @@ const DataCenter = () => {
           <table className="w-full text-left">
             <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
               <tr>
-                <th className="px-6 py-4">Nama Dokumen</th>
-                <th className="px-6 py-4">Kategori</th>
-                <th className="px-6 py-4">Tanggal</th>
-                <th className="px-6 py-4">Ukuran</th>
+                <th className="px-6 py-4">Nama File / Deskripsi</th>
+                <th className="px-6 py-4">Kategori (Kode)</th>
+                <th className="px-6 py-4">Tahun</th>
+                <th className="px-6 py-4">Update</th>
+                <th className="px-6 py-4">Oleh</th>
                 <th className="px-6 py-4">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {[
-                { name: 'SK_Kenaikan_Pangkat_2024.pdf', cat: 'Informasi Pegawai', date: '12 Mar 2024', size: '2.4 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_1/view' },
-                { name: 'Data_Statistik_Pegawai_Q1.xlsx', cat: 'Pengadaan Pegawai', date: '10 Mar 2024', size: '1.1 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_2/view' },
-                { name: 'Laporan_PIKP_Bulanan.docx', cat: 'Kinerja Pegawai', date: '08 Mar 2024', size: '850 KB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_3/view' },
-                { name: 'Arsip_Pembinaan_Disiplin.pdf', cat: 'Arsip Digital', date: '05 Mar 2024', size: '4.2 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_4/view' },
-              ].map((file, i) => (
-                <tr key={i} className="hover:bg-zinc-50 transition-colors group">
-                  <td className="px-6 py-4 font-medium flex items-center gap-3">
-                    <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600">
-                      <FileText size={16} />
-                    </div>
-                    {file.name}
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="px-6 py-4 h-16 bg-zinc-50/50" />
+                  </tr>
+                ))
+              ) : filteredDocs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-400 text-sm">
+                    Belum ada dokumen yang diunggah.
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-500">{file.cat}</td>
-                  <td className="px-6 py-4 text-sm text-zinc-500">{file.date}</td>
-                  <td className="px-6 py-4 text-sm text-zinc-500">{file.size}</td>
+                </tr>
+              ) : filteredDocs.map((file, i) => (
+                <tr key={i} className="hover:bg-zinc-50 transition-colors group">
+                  <td className="px-6 py-4 font-medium">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600">
+                        <FileText size={16} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm text-black font-bold truncate max-w-[200px]" title={file.fileName || file.name}>
+                          {file.fileName || file.name}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 uppercase tracking-tight">
+                          {file.name}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-zinc-600">{file.category}</span>
+                      <span className="text-[10px] font-bold text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded w-fit">
+                        KODE: {file.activityCode}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-zinc-500 font-bold">{file.year}</td>
+                  <td className="px-6 py-4 text-sm text-zinc-500">
+                    {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                   <td className="px-6 py-4">
                     <button 
-                      onClick={() => window.open(file.url, '_blank')}
-                      className="text-yellow-600 font-bold text-xs uppercase hover:underline"
+                      onClick={() => file.url && window.open(file.url, '_blank')}
+                      className="px-4 py-2 bg-black text-white text-[10px] font-black rounded-lg hover:bg-zinc-800 transition-all uppercase tracking-widest disabled:opacity-30"
+                      disabled={!file.url}
                     >
-                      Download
+                      Buka
                     </button>
                   </td>
                 </tr>
@@ -590,6 +1169,8 @@ const Services = () => {
     const q = query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'requests');
     });
     return () => unsubscribe();
   }, []);
@@ -914,13 +1495,138 @@ const BerAKHLAK = () => {
   );
 };
 
+const UnauthorizedPage = ({ onLogout }: { onLogout: () => void }) => {
+  return (
+    <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4 font-sans">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md bg-white p-10 rounded-[3rem] shadow-xl text-center border border-black/5"
+      >
+        <div className="w-20 h-20 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <ShieldCheck size={40} />
+        </div>
+        <h1 className="text-2xl font-black text-black mb-4">AKSES DITOLAK</h1>
+        <p className="text-zinc-500 text-sm leading-relaxed mb-8">
+          Maaf, akun Google Anda belum terdaftar dalam sistem PIK-P Digital Hub. 
+          Silakan hubungi Administrator untuk mendapatkan izin akses.
+        </p>
+        <button 
+          onClick={onLogout}
+          className="w-full py-4 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all flex items-center justify-center gap-2"
+        >
+          <LogOut size={20} /> KELUAR & COBA LAGI
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
+const UserManagement = () => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'), orderBy('lastLogin', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'users');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const toggleStatus = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'authorized' ? 'pending' : 'authorized';
+    try {
+      await setDoc(doc(db, 'users', userId), { status: newStatus }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'users');
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <header>
+        <h1 className="text-4xl font-black text-black tracking-tight">MANAJEMEN USER</h1>
+        <p className="text-zinc-500 mt-2">Kelola izin akses staf ke dalam portal PIK-P Digital Hub.</p>
+      </header>
+
+      <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+              <tr>
+                <th className="px-6 py-4">Nama / Email</th>
+                <th className="px-6 py-4">Login Terakhir</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {users.map((u) => (
+                <tr key={u.id} className="hover:bg-zinc-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+                      <div>
+                        <p className="font-bold text-sm">{u.displayName}</p>
+                        <p className="text-xs text-zinc-400">{u.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-zinc-500">
+                    {u.lastLogin ? new Date(u.lastLogin).toLocaleString('id-ID') : '-'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                      u.status === 'authorized' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                    )}>
+                      {u.status === 'authorized' ? 'Aktif' : 'Tertunda'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {u.email !== 'saininda@gmail.com' && (
+                      <button 
+                        onClick={() => toggleStatus(u.id, u.status)}
+                        className={cn(
+                          "text-xs font-bold uppercase tracking-widest hover:underline",
+                          u.status === 'authorized' ? "text-rose-500" : "text-emerald-600"
+                        )}
+                      >
+                        {u.status === 'authorized' ? 'Cabut Akses' : 'Beri Akses'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [authReady, setAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(sessionStorage.getItem('google_drive_token'));
+  const userSnapshotUnsubscribe = useRef<(() => void) | null>(null);
+
+  const handleLoginSuccess = (token: string) => {
+    setGoogleAccessToken(token);
+    sessionStorage.setItem('google_drive_token', token);
+  };
 
   useEffect(() => {
     const testConnection = async () => {
@@ -936,23 +1642,56 @@ export default function App() {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Save user to Firestore
+        // Unsubscribe from any previous user data listener
+        if (userSnapshotUnsubscribe.current) {
+          userSnapshotUnsubscribe.current();
+          userSnapshotUnsubscribe.current = null;
+        }
+
+        // Check if user exists in Firestore to get their role/status
+        const userRef = doc(db, 'users', user.uid);
+        
+        // Save/Update user info
         try {
-          await setDoc(doc(db, 'users', user.uid), {
+          const isAdmin = user.email === 'saininda@gmail.com';
+          await setDoc(userRef, {
             displayName: user.displayName,
             email: user.email,
             photoURL: user.photoURL,
             lastLogin: new Date().toISOString(),
-            role: user.email === 'saininda@gmail.com' ? 'admin' : 'staff'
+            // If it's the first time, admin is authorized, others are pending
+            ...(isAdmin ? { role: 'admin', status: 'authorized' } : {})
           }, { merge: true });
+
+          // Listen to user data for real-time status updates
+          userSnapshotUnsubscribe.current = onSnapshot(userRef, (doc) => {
+            setUserData(doc.data());
+          }, (error) => {
+            // Only handle error if user is still logged in
+            if (auth.currentUser) {
+              handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+            }
+          });
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, 'users');
+          handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
         }
+      } else {
+        // Unsubscribe from user data listener on logout
+        if (userSnapshotUnsubscribe.current) {
+          userSnapshotUnsubscribe.current();
+          userSnapshotUnsubscribe.current = null;
+        }
+        setUserData(null);
       }
       setUser(user);
       setAuthReady(true);
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (userSnapshotUnsubscribe.current) {
+        userSnapshotUnsubscribe.current();
+      }
+    };
   }, []);
 
   if (!authReady) {
@@ -964,17 +1703,25 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginPage />;
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Access Control: Only allow authorized users or the main admin
+  const isAuthorized = userData?.status === 'authorized' || user.email === 'saininda@gmail.com';
+
+  if (!isAuthorized) {
+    return <UnauthorizedPage onLogout={() => signOut(auth)} />;
   }
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard user={user} />;
-      case 'datacenter': return <DataCenter />;
+      case 'datacenter': return <DataCenter user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
       case 'services': return <Services />;
       case 'workhub': return <WorkHub />;
       case 'berakhlak': return <BerAKHLAK />;
-      default: return <Dashboard />;
+      case 'usermanagement': return <UserManagement />;
+      default: return <Dashboard user={user} />;
     }
   };
 
@@ -987,84 +1734,87 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 selection:bg-yellow-200">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        isOpen={isSidebarOpen} 
-        setIsOpen={setIsSidebarOpen} 
-      />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 selection:bg-yellow-200">
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          isOpen={isSidebarOpen} 
+          setIsOpen={setIsSidebarOpen} 
+          isAdmin={user.email === 'saininda@gmail.com'}
+        />
 
-      <main className={cn(
-        "transition-all duration-300 min-h-screen p-4 lg:p-8",
-        isSidebarOpen ? "lg:ml-64" : "lg:ml-20"
-      )}>
-        <div className="max-w-7xl mx-auto">
-          {/* Top Bar */}
-          <div className="flex items-center justify-between mb-12">
-            <div className="flex items-center gap-4">
-              {!isSidebarOpen && (
-                <button 
-                  onClick={() => setIsSidebarOpen(true)}
-                  className="p-3 bg-yellow-400 text-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all lg:hidden"
-                >
-                  <Menu size={20} />
-                </button>
-              )}
-              <div className="hidden lg:block">
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Pagi,</p>
-                <h2 className="text-lg font-bold">{user.displayName || 'Staf PIK-P'}</h2>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-black/5">
-              <button className="p-2 hover:bg-zinc-100 rounded-xl transition-colors relative">
-                <Bell size={20} />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full border-2 border-white" />
-              </button>
-              <div className="h-8 w-[1px] bg-zinc-100" />
-              <div className="flex items-center gap-3 px-2">
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold">{user.displayName || 'User'}</p>
+        <main className={cn(
+          "transition-all duration-300 min-h-screen p-4 lg:p-8",
+          isSidebarOpen ? "lg:ml-64" : "lg:ml-20"
+        )}>
+          <div className="max-w-7xl mx-auto">
+            {/* Top Bar */}
+            <div className="flex items-center justify-between mb-12">
+              <div className="flex items-center gap-4">
+                {!isSidebarOpen && (
                   <button 
-                    onClick={handleLogout}
-                    className="text-[10px] text-rose-500 font-bold uppercase tracking-wider hover:underline"
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="p-3 bg-yellow-400 text-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all lg:hidden"
                   >
-                    Keluar
+                    <Menu size={20} />
                   </button>
-                </div>
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-xl object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center font-black">
-                    {user.displayName?.substring(0, 2).toUpperCase() || 'AD'}
-                  </div>
                 )}
+                <div className="hidden lg:block">
+                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Pagi,</p>
+                  <h2 className="text-lg font-bold">{user.displayName || 'Staf PIK-P'}</h2>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-black/5">
+                <button className="p-2 hover:bg-zinc-100 rounded-xl transition-colors relative">
+                  <Bell size={20} />
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full border-2 border-white" />
+                </button>
+                <div className="h-8 w-[1px] bg-zinc-100" />
+                <div className="flex items-center gap-3 px-2">
+                  <div className="text-right hidden sm:block">
+                    <p className="text-xs font-bold">{user.displayName || 'User'}</p>
+                    <button 
+                      onClick={handleLogout}
+                      className="text-[10px] text-rose-500 font-bold uppercase tracking-wider hover:underline"
+                    >
+                      Keluar
+                    </button>
+                  </div>
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-xl object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center font-black">
+                      {user.displayName?.substring(0, 2).toUpperCase() || 'AD'}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Content Area */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {renderContent()}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
-          {/* Content Area */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderContent()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Footer */}
-        <footer className="mt-20 py-8 border-t border-zinc-200 text-center">
-          <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            © 2026 Bidang PIK-P BKPSDM Polewali Mandar • Digital Hub Portal
-          </p>
-        </footer>
-      </main>
-    </div>
+          {/* Footer */}
+          <footer className="mt-20 py-8 border-t border-zinc-200 text-center">
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+              © 2026 Bidang PIK-P BKPSDM Polewali Mandar • Digital Hub Portal
+            </p>
+          </footer>
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 }

@@ -10,15 +10,20 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+        ( (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') || 
          (request.auth.token.email == "saininda@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isAuthorized() {
+      return isAuthenticated() && 
+        ( (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'authorized') || isAdmin());
     }
 
     // ===============================================================
     // Stats Collection
     // ===============================================================
     match /stats/{statId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthorized();
       allow write: if isAdmin();
     }
 
@@ -26,8 +31,8 @@ service cloud.firestore {
     // Requests Collection
     // ===============================================================
     match /requests/{requestId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      allow read: if isAuthorized();
+      allow create: if isAuthorized();
       allow update, delete: if isAdmin();
     }
 
@@ -37,6 +42,15 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // ===============================================================
+    // Documents Collection
+    // ===============================================================
+    match /documents/{docId} {
+      allow read: if isAuthorized();
+      allow create: if isAuthorized();
+      allow update, delete: if isAdmin();
     }
   }
 }

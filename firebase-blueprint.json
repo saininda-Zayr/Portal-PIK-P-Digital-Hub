@@ -37,9 +37,24 @@
         "email": { "type": "string" },
         "photoURL": { "type": "string" },
         "lastLogin": { "type": "string", "format": "date-time" },
-        "role": { "type": "string", "enum": ["admin", "staff"] }
+        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "status": { "type": "string", "enum": ["authorized", "pending"] }
       },
       "required": ["displayName", "email", "lastLogin", "role"]
+    },
+    "Document": {
+      "title": "Document",
+      "description": "Metadata dokumen digital",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "size": { "type": "string" },
+        "url": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["name", "category", "createdAt"]
     }
   },
   "firestore": {
@@ -54,6 +69,10 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "Koleksi data user/staf"
+    },
+    "/documents/{docId}": {
+      "schema": "Document",
+      "description": "Koleksi dokumen digital"
     }
   }
 }
