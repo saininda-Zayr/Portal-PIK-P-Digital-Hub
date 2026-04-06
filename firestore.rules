@@ -32,7 +32,7 @@ service cloud.firestore {
     // ===============================================================
     match /requests/{requestId} {
       allow read: if isAuthorized();
-      allow create: if isAuthorized();
+      allow create: if true; // Allow public submissions for external parties
       allow update, delete: if isAdmin();
     }
 
@@ -51,6 +51,30 @@ service cloud.firestore {
       allow read: if isAuthorized();
       allow create: if isAuthorized();
       allow update, delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // Events Collection
+    // ===============================================================
+    match /events/{eventId} {
+      allow read: if isAuthorized();
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // Tasks Collection
+    // ===============================================================
+    match /tasks/{taskId} {
+      allow read: if isAuthorized();
+      allow write: if isAuthorized(); // Staff can update task status
+    }
+
+    // ===============================================================
+    // Announcements Collection
+    // ===============================================================
+    match /announcements/{announcementId} {
+      allow read: if isAuthorized();
+      allow write: if isAdmin();
     }
   }
 }

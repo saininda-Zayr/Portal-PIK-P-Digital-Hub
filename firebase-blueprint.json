@@ -9,7 +9,9 @@
         "value": { "type": "string" },
         "icon": { "type": "string" },
         "color": { "type": "string" },
-        "order": { "type": "number" }
+        "order": { "type": "number" },
+        "isDynamic": { "type": "boolean" },
+        "dynamicKey": { "type": "string" }
       },
       "required": ["label", "value", "icon", "color", "order"]
     },
@@ -55,6 +57,43 @@
         "uploadedBy": { "type": "string" }
       },
       "required": ["name", "category", "createdAt"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Kegiatan kalender",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date", "createdAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Tugas tim PIK-P",
+      "type": "object",
+      "properties": {
+        "task": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "In Progress", "Completed"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["task", "status", "priority", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Pengumuman papan digital",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "time": { "type": "string" },
+        "date": { "type": "string" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "time", "date", "createdAt"]
     }
   },
   "firestore": {
@@ -73,6 +112,18 @@
     "/documents/{docId}": {
       "schema": "Document",
       "description": "Koleksi dokumen digital"
+    },
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Koleksi kegiatan kalender"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Koleksi tugas tim"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Koleksi pengumuman"
     }
   }
 }

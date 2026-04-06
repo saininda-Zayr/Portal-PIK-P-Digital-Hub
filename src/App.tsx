@@ -17,6 +17,9 @@ import {
   Bell,
   Search,
   PlusCircle,
+  Plus,
+  Trash2,
+  Edit2,
   BarChart3,
   ShieldCheck,
   Zap,
@@ -26,7 +29,11 @@ import {
   CheckCircle2,
   LogOut,
   LogIn,
-  Upload
+  Upload,
+  Mail,
+  Phone,
+  Clock,
+  Filter
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -55,6 +62,7 @@ import {
   getDocs,
   getDocFromServer,
   addDoc,
+  deleteDoc,
   serverTimestamp,
   updateDoc
 } from 'firebase/firestore';
@@ -180,25 +188,200 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
 
 // --- Components ---
 
+const PublicRequestForm = ({ onClose }: { onClose: () => void }) => {
+  const [formData, setFormData] = useState({
+    requesterName: '',
+    unit: '',
+    contact: '',
+    dataType: 'Pengadaan Pegawai',
+    dataDescription: '',
+    reason: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'requests'), {
+        ...formData,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        isPublic: true
+      });
+      setSuccess(true);
+      setFormData({ requesterName: '', unit: '', contact: '', dataType: 'Pengadaan Pegawai', dataDescription: '', reason: '' });
+    } catch (error) {
+      console.error("Error submitting request:", error);
+      alert("Gagal mengirim permintaan. Silakan coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="w-full max-w-4xl bg-white text-black p-8 rounded-[3rem] shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto"
+    >
+      <button onClick={onClose} className="absolute top-6 right-6 p-2 hover:bg-zinc-100 rounded-full transition-all">
+        <X size={24} />
+      </button>
+
+      <div className="text-center mb-8">
+        <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-black font-black text-2xl mx-auto mb-4 shadow-lg shadow-yellow-400/10">
+          P
+        </div>
+        <h2 className="text-3xl font-black tracking-tight">Layanan Permintaan Data</h2>
+        <p className="text-zinc-500 font-medium">Silakan lengkapi formulir untuk mengajukan permintaan data ke Bidang PIK-P.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          {success ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="h-full flex flex-col items-center justify-center text-center p-12 bg-emerald-50 rounded-[2.5rem] border border-emerald-100"
+            >
+              <div className="w-20 h-20 bg-emerald-500 text-white rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/20">
+                <CheckCircle2 size={48} />
+              </div>
+              <h3 className="text-2xl font-black text-emerald-900 mb-2">Permintaan Terkirim!</h3>
+              <p className="text-emerald-700 font-medium mb-8">
+                Terima kasih. Permintaan data Anda telah kami terima dan akan segera diproses oleh tim PIK-P.
+              </p>
+              <button 
+                onClick={onClose}
+                className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+              >
+                KEMBALI KE BERANDA
+              </button>
+            </motion.div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Nama Lengkap</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.requesterName}
+                    onChange={e => setFormData({...formData, requesterName: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" 
+                    placeholder="Nama Anda" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Instansi / Unit Kerja</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.unit}
+                    onChange={e => setFormData({...formData, unit: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" 
+                    placeholder="Contoh: Universitas Polman" 
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kontak (Email / WhatsApp)</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.contact}
+                  onChange={e => setFormData({...formData, contact: e.target.value})}
+                  className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" 
+                  placeholder="Email atau nomor WhatsApp aktif" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Jenis Data</label>
+                <select 
+                  value={formData.dataType}
+                  onChange={e => setFormData({...formData, dataType: e.target.value})}
+                  className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                >
+                  <option>Pengadaan Pegawai</option>
+                  <option>Informasi Pegawai</option>
+                  <option>Kinerja Pegawai</option>
+                  <option>Arsip Digital</option>
+                  <option>Lainnya</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Deskripsi Data yang Diminta</label>
+                <textarea 
+                  required
+                  value={formData.dataDescription}
+                  onChange={e => setFormData({...formData, dataDescription: e.target.value})}
+                  className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400 h-24" 
+                  placeholder="Rincian data yang Anda butuhkan secara spesifik..."
+                ></textarea>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Alasan Permintaan</label>
+                <textarea 
+                  required
+                  value={formData.reason}
+                  onChange={e => setFormData({...formData, reason: e.target.value})}
+                  className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400 h-24" 
+                  placeholder="Jelaskan keperluan penggunaan data..."
+                ></textarea>
+              </div>
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full py-4 bg-yellow-400 text-black font-black rounded-2xl shadow-lg hover:bg-yellow-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : 'KIRIM PERMINTAAN'}
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-zinc-900 text-yellow-400 p-8 rounded-3xl">
+            <h3 className="font-bold text-xl mb-4">Layanan Aktif</h3>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Sistem kami siap menerima permintaan data Anda. Seluruh proses dilakukan secara digital untuk efisiensi.
+            </p>
+            <div className="mt-6 flex items-center gap-3 text-xs font-bold uppercase tracking-widest">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              Sistem Online
+            </div>
+          </div>
+          <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-100">
+            <h4 className="text-xs font-black uppercase tracking-widest text-yellow-800 mb-2">SOP Layanan</h4>
+            <p className="text-[10px] text-yellow-700 leading-relaxed font-medium">
+              Permintaan akan diproses maksimal 1x24 jam. Pastikan kontak yang Anda masukkan benar untuk pengiriman data.
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPublicForm, setShowPublicForm] = useState(false);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      // Add Google Drive scope - using full drive scope to allow writing to existing folders
       provider.addScope('https://www.googleapis.com/auth/drive');
-      
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
-      
-      if (token) {
-        onLoginSuccess(token);
-      }
+      if (token) onLoginSuccess(token);
     } catch (err: any) {
       setError('Gagal masuk dengan Google. Silakan coba lagi.');
       console.error(err);
@@ -208,66 +391,74 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
   };
 
   return (
-    <div className="min-h-screen bg-yellow-400 flex items-center justify-center p-4 font-sans">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-black text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden"
-      >
-        <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-        
-        <div className="text-center mb-10 relative z-10">
-          <div className="w-20 h-20 bg-yellow-400 rounded-3xl flex items-center justify-center text-black font-black text-4xl mx-auto mb-6 shadow-lg shadow-yellow-400/20">
-            P
-          </div>
-          <h1 className="text-3xl font-black tracking-tight mb-2">PIK-P DIGITAL HUB</h1>
-          <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
-        </div>
-
-        <div className="space-y-6 relative z-10">
-          {error && (
-            <motion.div 
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-2xl text-center"
-            >
-              {error}
-            </motion.div>
-          )}
-
-          <button 
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full py-4 bg-white text-black font-black rounded-2xl shadow-lg hover:bg-zinc-100 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+    <div className="min-h-screen bg-yellow-400 flex items-center justify-center p-4 font-sans overflow-hidden">
+      <AnimatePresence mode="wait">
+        {!showPublicForm ? (
+          <motion.div 
+            key="login"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-md bg-black text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden"
           >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <LogIn size={20} />
-                MASUK DENGAN GOOGLE
-              </>
-            )}
-          </button>
-          
-          <div className="relative py-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-800"></div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+            
+            <div className="text-center mb-10 relative z-10">
+              <div className="w-20 h-20 bg-yellow-400 rounded-3xl flex items-center justify-center text-black font-black text-4xl mx-auto mb-6 shadow-lg shadow-yellow-400/20">
+                P
+              </div>
+              <h1 className="text-3xl font-black tracking-tight mb-2">PIK-P DIGITAL HUB</h1>
+              <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-black px-2 text-zinc-500 font-bold tracking-widest">Akses Staf</span>
+
+            <div className="space-y-6 relative z-10">
+              {error && (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-2xl text-center">
+                  {error}
+                </div>
+              )}
+
+              <button 
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="w-full py-4 bg-white text-black font-black rounded-2xl shadow-lg hover:bg-zinc-100 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <LogIn size={20} />
+                    MASUK DENGAN GOOGLE
+                  </>
+                )}
+              </button>
+              
+              <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-800"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-black px-2 text-zinc-500 font-bold tracking-widest">Atau</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowPublicForm(true)}
+                className="w-full py-4 bg-zinc-900 text-yellow-400 font-black rounded-2xl border border-yellow-400/20 hover:bg-zinc-800 transition-all flex items-center justify-center gap-3"
+              >
+                <FileText size={20} />
+                AJUKAN PERMINTAAN DATA
+              </button>
+
+              <p className="text-center text-zinc-500 text-[10px] leading-relaxed uppercase font-bold tracking-widest">
+                Layanan Publik Khusus Pihak Eksternal
+              </p>
             </div>
-          </div>
-
-          <p className="text-center text-zinc-500 text-xs leading-relaxed">
-            Gunakan akun email instansi atau email yang telah terdaftar untuk mengakses portal data.
-          </p>
-        </div>
-
-        <p className="mt-10 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest">
-          Akses Terbatas • Staf Bidang PIK-P
-        </p>
-      </motion.div>
+          </motion.div>
+        ) : (
+          <PublicRequestForm key="form" onClose={() => setShowPublicForm(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -276,12 +467,12 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'datacenter', label: 'Pusat Data', icon: Database },
-    { id: 'services', label: 'Layanan Digital', icon: FileText },
     { id: 'workhub', label: 'Work Hub', icon: Calendar },
     { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: ShieldCheck },
   ];
 
   if (isAdmin) {
+    menuItems.push({ id: 'requests', label: 'Permintaan Data', icon: Bell });
     menuItems.push({ id: 'usermanagement', label: 'Manajemen User', icon: Users });
   }
 
@@ -361,6 +552,7 @@ const Dashboard = ({ user }: { user: any }) => {
   const [requestCount, setRequestCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
   const [docCount, setDocCount] = useState(0);
+  const [efficiency, setEfficiency] = useState('0%');
   const [chartData, setChartData] = useState<any[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
 
@@ -443,11 +635,24 @@ const Dashboard = ({ user }: { user: any }) => {
       }
     });
 
+    // Listen to real tasks for efficiency calculation
+    const unsubscribeTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
+      const total = snapshot.size;
+      const completed = snapshot.docs.filter(d => d.data().status === 'Completed').length;
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+      setEfficiency(`${percentage}%`);
+    }, (error) => {
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'tasks');
+      }
+    });
+
     return () => {
       unsubscribeStats();
       unsubscribeRequests();
       unsubscribeDocs();
       unsubscribeStaff();
+      unsubscribeTasks();
     };
   }, []);
 
@@ -456,7 +661,7 @@ const Dashboard = ({ user }: { user: any }) => {
       { label: 'Total Dokumen', value: '0', icon: 'Database', color: 'bg-yellow-400', order: 1, isDynamic: true, dynamicKey: 'docs' },
       { label: 'Permintaan Data', value: '0', icon: 'FileText', color: 'bg-black text-white', order: 2, isDynamic: true, dynamicKey: 'requests' },
       { label: 'Staf Aktif', value: '0', icon: 'Users', color: 'bg-zinc-100', order: 3, isDynamic: true, dynamicKey: 'staff' },
-      { label: 'Efisiensi Kerja', value: '94%', icon: 'Zap', color: 'bg-yellow-100', order: 4 },
+      { label: 'Efisiensi Kerja', value: '0%', icon: 'Zap', color: 'bg-yellow-100', order: 4, isDynamic: true, dynamicKey: 'efficiency' },
     ];
 
     try {
@@ -484,6 +689,7 @@ const Dashboard = ({ user }: { user: any }) => {
       if (stat.dynamicKey === 'requests') return requestCount.toString();
       if (stat.dynamicKey === 'staff') return staffCount.toString();
       if (stat.dynamicKey === 'docs') return docCount.toString();
+      if (stat.dynamicKey === 'efficiency') return efficiency;
     }
     return stat.value;
   };
@@ -1154,253 +1360,486 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   );
 };
 
-const Services = () => {
-  const [formData, setFormData] = useState({
-    requesterName: '',
-    unit: '',
-    dataType: 'Data Statistik Pegawai',
-    reason: ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+const RequestManagement = () => {
   const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     const q = query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'requests');
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'requests');
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth.currentUser) return;
-    
-    setLoading(true);
+  const updateStatus = async (id: string, status: string) => {
     try {
-      await addDoc(collection(db, 'requests'), {
-        ...formData,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        uid: auth.currentUser.uid
-      });
-      setSuccess(true);
-      setFormData({ requesterName: '', unit: '', dataType: 'Data Statistik Pegawai', reason: '' });
-      setTimeout(() => setSuccess(false), 3000);
+      await updateDoc(doc(db, 'requests', id), { status });
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'requests');
-    } finally {
-      setLoading(false);
+      handleFirestoreError(error, OperationType.UPDATE, `requests/${id}`);
     }
   };
 
-  const stats = {
-    pending: requests.filter(r => r.status === 'pending').length,
-    processing: requests.filter(r => r.status === 'processing').length,
-    completed: requests.filter(r => r.status === 'completed').length
-  };
+  const filteredRequests = requests.filter(r => filter === 'all' || r.status === filter);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <header>
-        <h1 className="text-4xl font-black text-black tracking-tight">LAYANAN DIGITAL</h1>
-        <p className="text-zinc-500 mt-2">Formulir interaktif untuk mempermudah alur kerja staf.</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tight uppercase">Manajemen Permintaan</h1>
+          <p className="text-zinc-500 mt-2">Kelola dan proses permintaan data dari pihak eksternal.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-black/5 shadow-sm">
+          {['all', 'pending', 'processing', 'completed'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all",
+                filter === f ? "bg-black text-white" : "hover:bg-zinc-100 text-zinc-400"
+              )}
+            >
+              {f === 'all' ? 'Semua' : f === 'pending' ? 'Antrean' : f === 'processing' ? 'Proses' : 'Selesai'}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
-          <h3 className="font-bold text-xl mb-6">Form Permintaan Data</h3>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {success && (
+      <div className="grid grid-cols-1 gap-4">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[3rem] border border-black/5">
+            <div className="w-12 h-12 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-zinc-400 font-bold uppercase tracking-widest text-xs">Memuat Permintaan...</p>
+          </div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-[3rem] border border-black/5">
+            <div className="w-20 h-20 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-300">
+              <Bell size={40} />
+            </div>
+            <h3 className="font-bold text-xl">Tidak Ada Permintaan</h3>
+            <p className="text-zinc-400">Belum ada permintaan data untuk kategori ini.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredRequests.map((req) => (
               <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 bg-emerald-50 text-emerald-600 text-sm font-bold rounded-2xl border border-emerald-100"
+                layout
+                key={req.id}
+                className="bg-white p-6 rounded-[2.5rem] border border-black/5 shadow-sm hover:shadow-xl transition-all group"
               >
-                Permintaan data berhasil dikirim!
-              </motion.div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Nama Pemohon</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.requesterName}
-                  onChange={e => setFormData({...formData, requesterName: e.target.value})}
-                  className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400" 
-                  placeholder="Masukkan nama lengkap" 
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Unit Kerja</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.unit}
-                  onChange={e => setFormData({...formData, unit: e.target.value})}
-                  className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400" 
-                  placeholder="Contoh: Bidang Mutasi" 
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Jenis Data yang Dibutuhkan</label>
-              <select 
-                value={formData.dataType}
-                onChange={e => setFormData({...formData, dataType: e.target.value})}
-                className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400"
-              >
-                <option>Data Statistik Pegawai</option>
-                <option>Dokumen SK</option>
-                <option>Data Pembinaan</option>
-                <option>Lainnya</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Alasan Permintaan</label>
-              <textarea 
-                required
-                value={formData.reason}
-                onChange={e => setFormData({...formData, reason: e.target.value})}
-                className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400 h-32" 
-                placeholder="Jelaskan keperluan penggunaan data..."
-              ></textarea>
-            </div>
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full py-4 bg-yellow-400 text-black font-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <PlusCircle size={20} /> KIRIM PERMINTAAN
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-black text-yellow-400 p-8 rounded-3xl shadow-xl">
-            <h3 className="font-bold text-xl mb-4">Status Layanan</h3>
-            <div className="space-y-4">
-              {[
-                { label: 'Permintaan Masuk', value: stats.pending, icon: Bell },
-                { label: 'Sedang Diproses', value: stats.processing, icon: Zap },
-                { label: 'Selesai Hari Ini', value: stats.completed, icon: CheckCircle2 },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-white/10 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <item.icon size={18} />
-                    <span className="text-sm font-medium">{item.label}</span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                    req.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
+                    req.status === 'processing' ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+                  )}>
+                    {req.status}
                   </div>
-                  <span className="font-black text-lg">{item.value}</span>
+                  <span className="text-[10px] font-bold text-zinc-400 flex items-center gap-1">
+                    <Clock size={12} /> {new Date(req.createdAt).toLocaleDateString('id-ID')}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="bg-yellow-50 p-6 rounded-3xl border border-yellow-200">
-            <h4 className="font-bold text-yellow-800 mb-2">Informasi Penting</h4>
-            <p className="text-sm text-yellow-700 leading-relaxed">
-              Seluruh permintaan data akan diproses maksimal 1x24 jam kerja sesuai dengan SOP Bidang PIK-P.
-            </p>
+                <h3 className="font-black text-lg mb-1 uppercase leading-tight">{req.requesterName}</h3>
+                <p className="text-xs font-bold text-zinc-400 mb-4">{req.unit}</p>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-8 h-8 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-400">
+                      <Database size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Jenis Data</p>
+                      <p className="font-bold text-zinc-700">{req.dataType}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-8 h-8 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-400">
+                      <Mail size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Kontak</p>
+                      <p className="font-bold text-zinc-700">{req.contact || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-50 p-4 rounded-2xl mb-6 space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Deskripsi Data</p>
+                    <p className="text-xs text-zinc-700 leading-relaxed">{req.dataDescription || 'Tidak ada deskripsi'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Alasan</p>
+                    <p className="text-xs text-zinc-600 leading-relaxed italic">"{req.reason}"</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {req.status === 'pending' && (
+                    <button 
+                      onClick={() => updateStatus(req.id, 'processing')}
+                      className="flex-1 py-3 bg-black text-white text-[10px] font-black rounded-xl hover:bg-zinc-800 transition-all uppercase tracking-widest"
+                    >
+                      Proses
+                    </button>
+                  )}
+                  {req.status === 'processing' && (
+                    <button 
+                      onClick={() => updateStatus(req.id, 'completed')}
+                      className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black rounded-xl hover:bg-emerald-600 transition-all uppercase tracking-widest"
+                    >
+                      Selesai
+                    </button>
+                  )}
+                  {req.status !== 'pending' && (
+                    <button 
+                      onClick={() => updateStatus(req.id, 'pending')}
+                      className="py-3 px-4 bg-zinc-100 text-zinc-400 text-[10px] font-black rounded-xl hover:bg-zinc-200 transition-all uppercase tracking-widest"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-const WorkHub = () => {
+const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
+  const [events, setEvents] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState<'event' | 'task' | 'announcement' | null>(null);
+
   const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-  const calendar = Array.from({ length: 31 }, (_, i) => i + 1);
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const calendar = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  useEffect(() => {
+    const qEvents = query(collection(db, 'events'), orderBy('date', 'asc'));
+    const qTasks = query(collection(db, 'tasks'), orderBy('createdAt', 'desc'));
+    const qAnnouncements = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+
+    const unsubEvents = onSnapshot(qEvents, (snapshot) => {
+      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, error => handleFirestoreError(error, OperationType.LIST, 'events'));
+
+    const unsubTasks = onSnapshot(qTasks, (snapshot) => {
+      setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, error => handleFirestoreError(error, OperationType.LIST, 'tasks'));
+
+    const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
+      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, error => handleFirestoreError(error, OperationType.LIST, 'announcements'));
+
+    return () => {
+      unsubEvents();
+      unsubTasks();
+      unsubAnnouncements();
+    };
+  }, []);
+
+  const deleteItem = async (collectionName: string, id: string) => {
+    if (!confirm('Hapus item ini?')) return;
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, collectionName);
+    }
+  };
+
+  const updateTaskStatus = async (taskId: string, currentStatus: string) => {
+    const statuses = ['Pending', 'In Progress', 'Completed'];
+    const nextStatus = statuses[(statuses.indexOf(currentStatus) + 1) % statuses.length];
+    try {
+      await updateDoc(doc(db, 'tasks', taskId), { status: nextStatus });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'tasks');
+    }
+  };
+
+  const AddModal = () => {
+    const [formData, setFormData] = useState<any>({});
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setSubmitting(true);
+      try {
+        const collectionName = showAddModal + 's';
+        await addDoc(collection(db, collectionName), {
+          ...formData,
+          createdAt: new Date().toISOString()
+        });
+        setShowAddModal(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, showAddModal + 's');
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-black uppercase tracking-tight">Tambah {showAddModal}</h3>
+            <button onClick={() => setShowAddModal(null)} className="p-2 hover:bg-zinc-100 rounded-full"><X size={20}/></button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {showAddModal === 'event' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Judul Kegiatan</label>
+                  <input required type="text" onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal</label>
+                  <input required type="date" onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" />
+                </div>
+              </>
+            )}
+            {showAddModal === 'task' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Nama Tugas</label>
+                  <input required type="text" onChange={e => setFormData({...formData, task: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Prioritas</label>
+                  <select required onChange={e => setFormData({...formData, priority: e.target.value, status: 'Pending'})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400">
+                    <option value="">Pilih Prioritas</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+              </>
+            )}
+            {showAddModal === 'announcement' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Judul Pengumuman</label>
+                  <input required type="text" onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Waktu</label>
+                    <input required type="text" placeholder="14:00 WITA" onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal/Ket</label>
+                    <input required type="text" placeholder="Besok / 20 Mar" onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Warna Aksen</label>
+                  <select required onChange={e => setFormData({...formData, color: e.target.value})} className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400">
+                    <option value="">Pilih Warna</option>
+                    <option value="border-yellow-400">Kuning</option>
+                    <option value="border-rose-400">Merah</option>
+                    <option value="border-emerald-400">Hijau</option>
+                    <option value="border-blue-400">Biru</option>
+                    <option value="border-zinc-700">Abu-abu</option>
+                  </select>
+                </div>
+              </>
+            )}
+            <button disabled={submitting} type="submit" className="w-full py-4 bg-yellow-400 text-black font-black rounded-2xl shadow-lg hover:bg-yellow-500 transition-all disabled:opacity-50">
+              {submitting ? 'MENYIMPAN...' : 'SIMPAN'}
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8 animate-in zoom-in-95 duration-500">
-      <header>
-        <h1 className="text-4xl font-black text-black tracking-tight">WORK HUB</h1>
-        <p className="text-zinc-500 mt-2">Pusat kolaborasi dan manajemen tugas harian staf.</p>
+      {showAddModal && <AddModal />}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tight">WORK HUB</h1>
+          <p className="text-zinc-500 mt-2">Pusat kolaborasi dan manajemen tugas harian staf.</p>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          {/* Calendar Section */}
           <div className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
             <div className="flex items-center justify-between mb-8">
               <h3 className="font-bold text-xl flex items-center gap-2">
                 <Calendar className="text-yellow-500" /> Kalender Kegiatan
               </h3>
-              <div className="flex gap-2">
-                <button className="p-2 hover:bg-zinc-100 rounded-lg">Prev</button>
-                <span className="font-bold px-4 py-2">Maret 2024</span>
-                <button className="p-2 hover:bg-zinc-100 rounded-lg">Next</button>
+              <div className="flex items-center gap-4">
+                <span className="font-bold px-4 py-2 bg-zinc-50 rounded-xl text-sm">
+                  {new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(today)}
+                </span>
+                {isAdmin && (
+                  <button 
+                    onClick={() => setShowAddModal('event')}
+                    className="p-2 bg-yellow-400 text-black rounded-xl hover:bg-yellow-500 transition-all shadow-sm"
+                  >
+                    <Plus size={20} />
+                  </button>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-7 gap-2">
               {days.map(day => (
                 <div key={day} className="text-center text-xs font-bold text-zinc-400 py-2 uppercase tracking-widest">{day}</div>
               ))}
-              {calendar.map(date => (
-                <div 
-                  key={date} 
-                  className={cn(
-                    "aspect-square flex flex-col items-center justify-center rounded-2xl text-sm font-medium transition-all cursor-pointer relative",
-                    date === 17 ? "bg-black text-yellow-400" : "hover:bg-yellow-100",
-                    [5, 12, 25].includes(date) && "after:content-[''] after:absolute after:bottom-2 after:w-1 after:h-1 after:bg-yellow-500 after:rounded-full"
-                  )}
-                >
-                  {date}
-                </div>
-              ))}
+              {calendar.map(date => {
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                const dayEvents = events.filter(e => e.date === dateStr);
+                const isToday = date === today.getDate();
+
+                return (
+                  <div 
+                    key={date} 
+                    className={cn(
+                      "aspect-square flex flex-col items-center justify-center rounded-2xl text-sm font-medium transition-all cursor-pointer relative group",
+                      isToday ? "bg-black text-yellow-400" : "hover:bg-yellow-50 bg-zinc-50/50",
+                      dayEvents.length > 0 && "after:content-[''] after:absolute after:bottom-2 after:w-1 after:h-1 after:bg-yellow-500 after:rounded-full"
+                    )}
+                  >
+                    {date}
+                    {dayEvents.length > 0 && (
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-zinc-900 text-white p-3 rounded-2xl text-xs shadow-2xl">
+                          {dayEvents.map((e, i) => (
+                            <div key={i} className="flex items-center justify-between gap-2 mb-1 last:mb-0">
+                              <span className="font-bold truncate">{e.title}</span>
+                              {isAdmin && (
+                                <button 
+                                  onClick={(ev) => { ev.stopPropagation(); deleteItem('events', e.id); }}
+                                  className="text-rose-400 hover:text-rose-300 pointer-events-auto"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
+          {/* Tasks Section */}
           <div className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
-            <h3 className="font-bold text-xl mb-6">Tugas Tim PIK-P</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-xl">Tugas Tim PIK-P</h3>
+              {isAdmin && (
+                <button 
+                  onClick={() => setShowAddModal('task')}
+                  className="p-2 bg-zinc-900 text-white rounded-xl hover:bg-black transition-all"
+                >
+                  <Plus size={20} />
+                </button>
+              )}
+            </div>
             <div className="space-y-4">
-              {[
-                { task: 'Update Data Pensiun Maret', status: 'In Progress', priority: 'High' },
-                { task: 'Verifikasi Berkas Kenaikan Pangkat', status: 'Pending', priority: 'Medium' },
-                { task: 'Backup Database Kepegawaian', status: 'Completed', priority: 'High' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-3 h-3 rounded-full",
-                      item.status === 'Completed' ? 'bg-emerald-500' : item.status === 'In Progress' ? 'bg-yellow-500' : 'bg-zinc-300'
-                    )} />
-                    <div>
-                      <p className="font-bold text-sm">{item.task}</p>
-                      <p className="text-xs text-zinc-400">Prioritas: {item.priority}</p>
+              {tasks.length === 0 ? (
+                <p className="text-center py-8 text-zinc-400 text-sm italic">Belum ada tugas tim.</p>
+              ) : (
+                tasks.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100 group">
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => updateTaskStatus(item.id, item.status)}
+                        className={cn(
+                          "w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center",
+                          item.status === 'Completed' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 hover:border-yellow-400'
+                        )}
+                      >
+                        {item.status === 'Completed' && <CheckCircle2 size={12} />}
+                      </button>
+                      <div>
+                        <p className={cn("font-bold text-sm", item.status === 'Completed' && "line-through text-zinc-400")}>{item.task}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                            item.priority === 'High' ? 'bg-rose-100 text-rose-600' : item.priority === 'Medium' ? 'bg-yellow-100 text-yellow-600' : 'bg-zinc-100 text-zinc-600'
+                          )}>
+                            {item.priority}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{item.status}</span>
+                        </div>
+                      </div>
                     </div>
+                    {isAdmin && (
+                      <button 
+                        onClick={() => deleteItem('tasks', item.id)}
+                        className="p-2 text-zinc-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">{item.status}</span>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        <div className="bg-zinc-900 text-white p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        {/* Announcements Section */}
+        <div className="bg-zinc-900 text-white p-8 rounded-3xl shadow-2xl relative overflow-hidden flex flex-col">
           <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-          <h3 className="font-bold text-xl mb-8 relative z-10">Papan Pengumuman</h3>
-          <div className="space-y-8 relative z-10">
-            {[
-              { title: 'Rapat Koordinasi Bidang', time: '14:00 WITA', date: 'Besok', color: 'border-yellow-400' },
-              { title: 'Batas Input Data e-Kinerja', time: '23:59 WITA', date: '20 Mar', color: 'border-zinc-700' },
-              { title: 'Pelatihan Dashboard Baru', time: '09:00 WITA', date: '25 Mar', color: 'border-zinc-700' },
-            ].map((news, i) => (
-              <div key={i} className={cn("pl-4 border-l-2 space-y-1", news.color)}>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{news.date} • {news.time}</p>
-                <h4 className="font-bold text-sm leading-tight">{news.title}</h4>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-8 relative z-10">
+            <h3 className="font-bold text-xl">Papan Pengumuman</h3>
+            {isAdmin && (
+              <button 
+                onClick={() => setShowAddModal('announcement')}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+              >
+                <Plus size={20} />
+              </button>
+            )}
+          </div>
+          <div className="space-y-8 relative z-10 flex-1">
+            {announcements.length === 0 ? (
+              <p className="text-center py-8 text-zinc-500 text-sm italic">Belum ada pengumuman.</p>
+            ) : (
+              announcements.map((news) => (
+                <div key={news.id} className={cn("pl-4 border-l-2 space-y-1 group relative", news.color)}>
+                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{news.date} • {news.time}</p>
+                  <h4 className="font-bold text-sm leading-tight pr-8">{news.title}</h4>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => deleteItem('announcements', news.id)}
+                      className="absolute top-0 right-0 p-1 text-zinc-700 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
           </div>
           <button className="w-full mt-12 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all">
             LIHAT SEMUA PENGUMUMAN
@@ -1717,8 +2156,8 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': return <Dashboard user={user} />;
       case 'datacenter': return <DataCenter user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
-      case 'services': return <Services />;
-      case 'workhub': return <WorkHub />;
+      case 'requests': return <RequestManagement />;
+      case 'workhub': return <WorkHub isAdmin={userData?.role === 'admin'} />;
       case 'berakhlak': return <BerAKHLAK />;
       case 'usermanagement': return <UserManagement />;
       default: return <Dashboard user={user} />;
