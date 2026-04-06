@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Database, 
@@ -23,7 +23,9 @@ import {
   Heart,
   Handshake,
   Lightbulb,
-  CheckCircle2
+  CheckCircle2,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -41,21 +43,96 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
+import { db, auth } from './firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  doc, 
+  setDoc, 
+  getDocs,
+  getDocFromServer,
+  addDoc,
+  serverTimestamp
+} from 'firebase/firestore';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  User
+} from 'firebase/auth';
+
+// --- Types ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // In a real app, we might show a toast here
+};
 
 // --- Components ---
 
-const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+const LoginPage = () => {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Simple mock authentication
-    if (username === 'admin' && password === 'admin123') {
-      onLogin();
-    } else {
-      setError('Username atau Password salah!');
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err: any) {
+      setError('Gagal masuk dengan Google. Silakan coba lagi.');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,7 +153,7 @@ const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
           <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+        <div className="space-y-6 relative z-10">
           {error && (
             <motion.div 
               initial={{ opacity: 0, x: -10 }}
@@ -87,35 +164,34 @@ const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
             </motion.div>
           )}
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Username</label>
-            <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-2xl focus:ring-2 focus:ring-yellow-400 transition-all outline-none"
-              placeholder="Masukkan username"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Password</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-2xl focus:ring-2 focus:ring-yellow-400 transition-all outline-none"
-              placeholder="••••••••"
-            />
-          </div>
-
           <button 
-            type="submit"
-            className="w-full py-4 bg-yellow-400 text-black font-black rounded-2xl shadow-lg shadow-yellow-400/10 hover:bg-yellow-500 transition-all transform active:scale-95"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full py-4 bg-white text-black font-black rounded-2xl shadow-lg hover:bg-zinc-100 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
           >
-            MASUK KE PORTAL
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <LogIn size={20} />
+                MASUK DENGAN GOOGLE
+              </>
+            )}
           </button>
-        </form>
+          
+          <div className="relative py-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-800"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-black px-2 text-zinc-500 font-bold tracking-widest">Akses Staf</span>
+            </div>
+          </div>
+
+          <p className="text-center text-zinc-500 text-xs leading-relaxed">
+            Gunakan akun email instansi atau email yang telah terdaftar untuk mengakses portal data.
+          </p>
+        </div>
 
         <p className="mt-10 text-center text-zinc-600 text-[10px] font-bold uppercase tracking-widest">
           Akses Terbatas • Staf Bidang PIK-P
@@ -204,7 +280,82 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }: any) => {
   );
 };
 
-const Dashboard = () => {
+const Dashboard = ({ user }: { user: any }) => {
+  const [stats, setStats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [requestCount, setRequestCount] = useState(0);
+  const [staffCount, setStaffCount] = useState(0);
+
+  const isAdmin = user?.email === 'saininda@gmail.com';
+
+  useEffect(() => {
+    // Listen to static stats
+    const q = query(collection(db, 'stats'), orderBy('order', 'asc'));
+    const unsubscribeStats = onSnapshot(q, (snapshot) => {
+      const statsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setStats(statsData);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'stats');
+      setLoading(false);
+    });
+
+    // Listen to real requests count
+    const unsubscribeRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
+      setRequestCount(snapshot.size);
+    });
+
+    // Listen to real staff count
+    const unsubscribeStaff = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setStaffCount(snapshot.size);
+    });
+
+    return () => {
+      unsubscribeStats();
+      unsubscribeRequests();
+      unsubscribeStaff();
+    };
+  }, []);
+
+  const seedStats = async () => {
+    const initialStats = [
+      { label: 'Total Dokumen', value: '1,284', icon: 'Database', color: 'bg-yellow-400', order: 1 },
+      { label: 'Permintaan Data', value: '0', icon: 'FileText', color: 'bg-black text-white', order: 2, isDynamic: true, dynamicKey: 'requests' },
+      { label: 'Staf Aktif', value: '0', icon: 'Users', color: 'bg-zinc-100', order: 3, isDynamic: true, dynamicKey: 'staff' },
+      { label: 'Efisiensi Kerja', value: '94%', icon: 'Zap', color: 'bg-yellow-100', order: 4 },
+    ];
+
+    try {
+      for (const stat of initialStats) {
+        await setDoc(doc(db, 'stats', stat.label.toLowerCase().replace(/\s+/g, '-')), stat);
+      }
+      alert('Data statistik berhasil diinisialisasi!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'stats');
+    }
+  };
+
+  const getIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Database': return Database;
+      case 'FileText': return FileText;
+      case 'Users': return Users;
+      case 'Zap': return Zap;
+      default: return Database;
+    }
+  };
+
+  const getDisplayValue = (stat: any) => {
+    if (stat.isDynamic) {
+      if (stat.dynamicKey === 'requests') return requestCount.toString();
+      if (stat.dynamicKey === 'staff') return staffCount.toString();
+    }
+    return stat.value;
+  };
+
   const data = [
     { name: 'Jan', data: 400, requests: 240 },
     { name: 'Feb', data: 300, requests: 139 },
@@ -225,32 +376,46 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <header>
-        <h1 className="text-4xl font-black text-black tracking-tight">DASHBOARD UTAMA</h1>
-        <p className="text-zinc-500 mt-2">Pantau statistik data dan aktivitas Bidang PIK-P secara real-time.</p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tight">DASHBOARD UTAMA</h1>
+          <p className="text-zinc-500 mt-2">Pantau statistik data dan aktivitas Bidang PIK-P secara real-time.</p>
+        </div>
+        {(stats.length === 0 || isAdmin) && !loading && (
+          <button 
+            onClick={seedStats}
+            className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-xl hover:bg-black transition-all"
+          >
+            {stats.length === 0 ? 'Inisialisasi Data' : 'Update Struktur Stats'}
+          </button>
+        )}
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { label: 'Total Dokumen', value: '1,284', icon: Database, color: 'bg-yellow-400' },
-          { label: 'Permintaan Data', value: '42', icon: FileText, color: 'bg-black text-white' },
-          { label: 'Staf Aktif', value: '18', icon: Users, color: 'bg-zinc-100' },
-          { label: 'Efisiensi Kerja', value: '94%', icon: Zap, color: 'bg-yellow-100' },
-        ].map((stat, i) => (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            key={i}
-            className={cn("p-6 rounded-3xl shadow-sm border border-black/5 flex items-center justify-between", stat.color)}
-          >
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest opacity-60">{stat.label}</p>
-              <p className="text-3xl font-black mt-1">{stat.value}</p>
-            </div>
-            <stat.icon size={32} className="opacity-20" />
-          </motion.div>
-        ))}
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-32 bg-zinc-100 animate-pulse rounded-3xl" />
+          ))
+        ) : (
+          stats.map((stat, i) => {
+            const Icon = getIcon(stat.icon);
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                key={stat.id}
+                className={cn("p-6 rounded-3xl shadow-sm border border-black/5 flex items-center justify-between", stat.color)}
+              >
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-60">{stat.label}</p>
+                  <p className="text-3xl font-black mt-1">{getDisplayValue(stat)}</p>
+                </div>
+                <Icon size={32} className="opacity-20" />
+              </motion.div>
+            );
+          })
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -319,9 +484,9 @@ const Dashboard = () => {
 
 const DataCenter = () => {
   const categories = [
-    { name: 'Data Pegawai', count: 450, icon: Users, url: 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID_1' },
-    { name: 'SK & Dokumen Resmi', count: 820, icon: FileText, url: 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID_2' },
-    { name: 'Laporan Kinerja', count: 120, icon: BarChart3, url: 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID_3' },
+    { name: 'Pengadaan Pegawai', count: 450, icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
+    { name: 'Informasi Pegawai', count: 820, icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
+    { name: 'Kinerja Pegawai', count: 120, icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
     { name: 'Arsip Digital', count: 2400, icon: Database, url: 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID_4' },
   ];
 
@@ -377,9 +542,9 @@ const DataCenter = () => {
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {[
-                { name: 'SK_Kenaikan_Pangkat_2024.pdf', cat: 'SK & Dokumen', date: '12 Mar 2024', size: '2.4 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_1/view' },
-                { name: 'Data_Statistik_Pegawai_Q1.xlsx', cat: 'Data Pegawai', date: '10 Mar 2024', size: '1.1 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_2/view' },
-                { name: 'Laporan_PIKP_Bulanan.docx', cat: 'Laporan', date: '08 Mar 2024', size: '850 KB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_3/view' },
+                { name: 'SK_Kenaikan_Pangkat_2024.pdf', cat: 'Informasi Pegawai', date: '12 Mar 2024', size: '2.4 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_1/view' },
+                { name: 'Data_Statistik_Pegawai_Q1.xlsx', cat: 'Pengadaan Pegawai', date: '10 Mar 2024', size: '1.1 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_2/view' },
+                { name: 'Laporan_PIKP_Bulanan.docx', cat: 'Kinerja Pegawai', date: '08 Mar 2024', size: '850 KB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_3/view' },
                 { name: 'Arsip_Pembinaan_Disiplin.pdf', cat: 'Arsip Digital', date: '05 Mar 2024', size: '4.2 MB', url: 'https://drive.google.com/file/d/YOUR_FILE_ID_4/view' },
               ].map((file, i) => (
                 <tr key={i} className="hover:bg-zinc-50 transition-colors group">
@@ -411,6 +576,52 @@ const DataCenter = () => {
 };
 
 const Services = () => {
+  const [formData, setFormData] = useState({
+    requesterName: '',
+    unit: '',
+    dataType: 'Data Statistik Pegawai',
+    reason: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [requests, setRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'requests'), {
+        ...formData,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        uid: auth.currentUser.uid
+      });
+      setSuccess(true);
+      setFormData({ requesterName: '', unit: '', dataType: 'Data Statistik Pegawai', reason: '' });
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'requests');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stats = {
+    pending: requests.filter(r => r.status === 'pending').length,
+    processing: requests.filter(r => r.status === 'processing').length,
+    completed: requests.filter(r => r.status === 'completed').length
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <header>
@@ -421,20 +632,47 @@ const Services = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
           <h3 className="font-bold text-xl mb-6">Form Permintaan Data</h3>
-          <form className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {success && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-emerald-50 text-emerald-600 text-sm font-bold rounded-2xl border border-emerald-100"
+              >
+                Permintaan data berhasil dikirim!
+              </motion.div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Nama Pemohon</label>
-                <input type="text" className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400" placeholder="Masukkan nama lengkap" />
+                <input 
+                  type="text" 
+                  required
+                  value={formData.requesterName}
+                  onChange={e => setFormData({...formData, requesterName: e.target.value})}
+                  className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400" 
+                  placeholder="Masukkan nama lengkap" 
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Unit Kerja</label>
-                <input type="text" className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400" placeholder="Contoh: Bidang Mutasi" />
+                <input 
+                  type="text" 
+                  required
+                  value={formData.unit}
+                  onChange={e => setFormData({...formData, unit: e.target.value})}
+                  className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400" 
+                  placeholder="Contoh: Bidang Mutasi" 
+                />
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Jenis Data yang Dibutuhkan</label>
-              <select className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400">
+              <select 
+                value={formData.dataType}
+                onChange={e => setFormData({...formData, dataType: e.target.value})}
+                className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400"
+              >
                 <option>Data Statistik Pegawai</option>
                 <option>Dokumen SK</option>
                 <option>Data Pembinaan</option>
@@ -443,10 +681,26 @@ const Services = () => {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-bold uppercase tracking-wider text-zinc-500">Alasan Permintaan</label>
-              <textarea className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400 h-32" placeholder="Jelaskan keperluan penggunaan data..."></textarea>
+              <textarea 
+                required
+                value={formData.reason}
+                onChange={e => setFormData({...formData, reason: e.target.value})}
+                className="w-full p-3 bg-zinc-50 border-none rounded-2xl focus:ring-2 focus:ring-yellow-400 h-32" 
+                placeholder="Jelaskan keperluan penggunaan data..."
+              ></textarea>
             </div>
-            <button type="button" className="w-full py-4 bg-yellow-400 text-black font-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all flex items-center justify-center gap-2">
-              <PlusCircle size={20} /> KIRIM PERMINTAAN
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full py-4 bg-yellow-400 text-black font-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <PlusCircle size={20} /> KIRIM PERMINTAAN
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -456,9 +710,9 @@ const Services = () => {
             <h3 className="font-bold text-xl mb-4">Status Layanan</h3>
             <div className="space-y-4">
               {[
-                { label: 'Permintaan Masuk', value: 12, icon: Bell },
-                { label: 'Sedang Diproses', value: 5, icon: Zap },
-                { label: 'Selesai Hari Ini', value: 8, icon: CheckCircle2 },
+                { label: 'Permintaan Masuk', value: stats.pending, icon: Bell },
+                { label: 'Sedang Diproses', value: stats.processing, icon: Zap },
+                { label: 'Selesai Hari Ini', value: stats.completed, icon: CheckCircle2 },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white/10 rounded-xl">
                   <div className="flex items-center gap-3">
@@ -663,22 +917,72 @@ const BerAKHLAK = () => {
 // --- Main App ---
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+        }
+      }
+    };
+    testConnection();
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Save user to Firestore
+        try {
+          await setDoc(doc(db, 'users', user.uid), {
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+            lastLogin: new Date().toISOString(),
+            role: user.email === 'saininda@gmail.com' ? 'admin' : 'staff'
+          }, { merge: true });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, 'users');
+        }
+      }
+      setUser(user);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-yellow-400 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
   }
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <Dashboard user={user} />;
       case 'datacenter': return <DataCenter />;
       case 'services': return <Services />;
       case 'workhub': return <WorkHub />;
       case 'berakhlak': return <BerAKHLAK />;
       default: return <Dashboard />;
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   };
 
@@ -709,7 +1013,7 @@ export default function App() {
               )}
               <div className="hidden lg:block">
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Pagi,</p>
-                <h2 className="text-lg font-bold">Staf PIK-P BKPSDM</h2>
+                <h2 className="text-lg font-bold">{user.displayName || 'Staf PIK-P'}</h2>
               </div>
             </div>
             
@@ -721,17 +1025,21 @@ export default function App() {
               <div className="h-8 w-[1px] bg-zinc-100" />
               <div className="flex items-center gap-3 px-2">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs font-bold">Administrator</p>
+                  <p className="text-xs font-bold">{user.displayName || 'User'}</p>
                   <button 
-                    onClick={() => setIsAuthenticated(false)}
+                    onClick={handleLogout}
                     className="text-[10px] text-rose-500 font-bold uppercase tracking-wider hover:underline"
                   >
                     Keluar
                   </button>
                 </div>
-                <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center font-black">
-                  AD
-                </div>
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-xl object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center font-black">
+                    {user.displayName?.substring(0, 2).toUpperCase() || 'AD'}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -753,7 +1061,7 @@ export default function App() {
         {/* Footer */}
         <footer className="mt-20 py-8 border-t border-zinc-200 text-center">
           <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            © 2024 Bidang PIK-P BKPSDM Polewali Mandar • Digital Hub Portal
+            © 2026 Bidang PIK-P BKPSDM Polewali Mandar • Digital Hub Portal
           </p>
         </footer>
       </main>

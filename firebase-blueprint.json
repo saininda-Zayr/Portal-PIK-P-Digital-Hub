@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "DashboardStat": {
+      "title": "DashboardStat",
+      "description": "Statistik utama untuk dashboard PIK-P",
+      "type": "object",
+      "properties": {
+        "label": { "type": "string" },
+        "value": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["label", "value", "icon", "color", "order"]
+    },
+    "DataRequest": {
+      "title": "DataRequest",
+      "description": "Permintaan data dari staf",
+      "type": "object",
+      "properties": {
+        "requesterName": { "type": "string" },
+        "unit": { "type": "string" },
+        "dataType": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processing", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "uid": { "type": "string" }
+      },
+      "required": ["requesterName", "unit", "dataType", "reason", "status", "createdAt", "uid"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Informasi staf/user",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" },
+        "role": { "type": "string", "enum": ["admin", "staff"] }
+      },
+      "required": ["displayName", "email", "lastLogin", "role"]
+    }
+  },
+  "firestore": {
+    "/stats/{statId}": {
+      "schema": "DashboardStat",
+      "description": "Koleksi statistik dashboard"
+    },
+    "/requests/{requestId}": {
+      "schema": "DataRequest",
+      "description": "Koleksi permintaan data"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Koleksi data user/staf"
+    }
+  }
+}
