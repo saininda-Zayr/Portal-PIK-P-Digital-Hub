@@ -54,6 +54,15 @@ service cloud.firestore {
     }
 
     // ===============================================================
+    // Archives Collection
+    // ===============================================================
+    match /archives/{archiveId} {
+      allow read: if isAuthorized();
+      allow create: if isAuthorized();
+      allow update, delete: if isAdmin();
+    }
+
+    // ===============================================================
     // Events Collection
     // ===============================================================
     match /events/{eventId} {

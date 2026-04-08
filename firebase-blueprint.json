@@ -94,6 +94,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "time", "date", "createdAt"]
+    },
+    "Archive": {
+      "title": "Archive",
+      "description": "Metadata arsip produk jadi",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "archiveType": { "type": "string" },
+        "year": { "type": "string" },
+        "url": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["name", "category", "archiveType", "createdAt"]
     }
   },
   "firestore": {
@@ -112,6 +127,10 @@
     "/documents/{docId}": {
       "schema": "Document",
       "description": "Koleksi dokumen digital"
+    },
+    "/archives/{archiveId}": {
+      "schema": "Archive",
+      "description": "Koleksi arsip produk jadi"
     },
     "/events/{eventId}": {
       "schema": "Event",

@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0524491970",
-  "appId": "1:292430555759:web:725e7cbb337d52e8223b9a",
-  "apiKey": "AIzaSyCde7Rg20s4KoCi7L3ZduOMytQu82w8eWM",
-  "authDomain": "gen-lang-client-0524491970.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-97ad23fd-d5bd-49c3-a16a-fc5676eb45bf",
-  "storageBucket": "gen-lang-client-0524491970.firebasestorage.app",
-  "messagingSenderId": "292430555759",
+  "projectId": "portal-pusat-data-pik-p",
+  "appId": "1:988033648671:web:0fa4df5141ed5fc2bb6d2a",
+  "apiKey": "AIzaSyDAD5ueawvJeFjBTUnuCYsA_0v-B2rNIco",
+  "authDomain": "portal-pusat-data-pik-p.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "portal-pusat-data-pik-p.firebasestorage.app",
+  "messagingSenderId": "988033648671",
   "measurementId": ""
 }

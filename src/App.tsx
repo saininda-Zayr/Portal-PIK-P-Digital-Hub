@@ -467,8 +467,9 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'datacenter', label: 'Pusat Data', icon: Database },
+    { id: 'arsipdigital', label: 'Arsip Digital', icon: ShieldCheck },
     { id: 'workhub', label: 'Work Hub', icon: Calendar },
-    { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: ShieldCheck },
+    { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: Heart },
   ];
 
   if (isAdmin) {
@@ -493,26 +494,33 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
 
       <motion.aside
         initial={false}
-        animate={{ x: isOpen ? 0 : -300 }}
+        animate={{ 
+          x: isOpen ? 0 : (window.innerWidth < 1024 ? -300 : 0),
+          width: isOpen ? 256 : (window.innerWidth < 1024 ? 256 : 80)
+        }}
         className={cn(
-          "fixed top-0 left-0 h-full w-64 bg-yellow-400 text-black z-50 shadow-2xl transition-all duration-300",
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 lg:w-20"
+          "fixed top-0 left-0 h-full bg-yellow-400 text-black z-50 shadow-2xl transition-all duration-300 overflow-hidden flex flex-col",
+          !isOpen && "lg:items-center"
         )}
-        style={{ x: undefined }} // Let Tailwind handle the positioning on desktop if closed
       >
-        <div className="p-6 flex items-center justify-between border-b border-yellow-500/30">
-          <div className={cn("flex items-center gap-3 overflow-hidden transition-all duration-300", !isOpen && "lg:w-0 lg:opacity-0")}>
-            <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-yellow-400 font-bold text-xl shrink-0">
-              P
+        <div className={cn(
+          "p-6 flex items-center border-b border-yellow-500/30 w-full",
+          isOpen ? "justify-between" : "justify-center"
+        )}>
+          {isOpen && (
+            <div className="flex items-center gap-3 overflow-hidden transition-all duration-300">
+              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-yellow-400 font-bold text-xl shrink-0">
+                P
+              </div>
+              <span className="font-bold text-lg whitespace-nowrap">PIK-P HUB</span>
             </div>
-            <span className="font-bold text-lg whitespace-nowrap">PIK-P HUB</span>
-          </div>
+          )}
           <button onClick={() => setIsOpen(!isOpen)} className="p-2 hover:bg-yellow-500 rounded-lg transition-colors shrink-0">
             {isOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2 flex-1">
           {menuItems.map((item) => (
             <button
               key={item.id}
@@ -521,16 +529,20 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
                 if (window.innerWidth < 1024) setIsOpen(false);
               }}
               className={cn(
-                "w-full flex items-center gap-4 p-3 rounded-xl transition-all group",
+                "w-full flex items-center rounded-xl transition-all group",
+                isOpen ? "gap-4 p-3" : "justify-center p-3",
                 activeTab === item.id 
                   ? "bg-black text-yellow-400 shadow-lg" 
                   : "hover:bg-yellow-500 text-black/80"
               )}
+              title={!isOpen ? item.label : ""}
             >
               <item.icon size={22} className={cn(activeTab === item.id ? "scale-110" : "group-hover:scale-110")} />
-              <span className={cn("font-medium transition-opacity", !isOpen && "lg:opacity-0")}>
-                {item.label}
-              </span>
+              {isOpen && (
+                <span className="font-medium whitespace-nowrap">
+                  {item.label}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -552,6 +564,7 @@ const Dashboard = ({ user }: { user: any }) => {
   const [requestCount, setRequestCount] = useState(0);
   const [staffCount, setStaffCount] = useState(0);
   const [docCount, setDocCount] = useState(0);
+  const [archiveCount, setArchiveCount] = useState(0);
   const [efficiency, setEfficiency] = useState('0%');
   const [chartData, setChartData] = useState<any[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
@@ -635,6 +648,15 @@ const Dashboard = ({ user }: { user: any }) => {
       }
     });
 
+    // Listen to real archives count
+    const unsubscribeArchives = onSnapshot(collection(db, 'archives'), (snapshot) => {
+      setArchiveCount(snapshot.size);
+    }, (error) => {
+      if (auth.currentUser) {
+        handleFirestoreError(error, OperationType.LIST, 'archives');
+      }
+    });
+
     // Listen to real tasks for efficiency calculation
     const unsubscribeTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
       const total = snapshot.size;
@@ -652,6 +674,7 @@ const Dashboard = ({ user }: { user: any }) => {
       unsubscribeRequests();
       unsubscribeDocs();
       unsubscribeStaff();
+      unsubscribeArchives();
       unsubscribeTasks();
     };
   }, []);
@@ -659,9 +682,9 @@ const Dashboard = ({ user }: { user: any }) => {
   const seedStats = async () => {
     const initialStats = [
       { label: 'Total Dokumen', value: '0', icon: 'Database', color: 'bg-yellow-400', order: 1, isDynamic: true, dynamicKey: 'docs' },
-      { label: 'Permintaan Data', value: '0', icon: 'FileText', color: 'bg-black text-white', order: 2, isDynamic: true, dynamicKey: 'requests' },
-      { label: 'Staf Aktif', value: '0', icon: 'Users', color: 'bg-zinc-100', order: 3, isDynamic: true, dynamicKey: 'staff' },
-      { label: 'Efisiensi Kerja', value: '0%', icon: 'Zap', color: 'bg-yellow-100', order: 4, isDynamic: true, dynamicKey: 'efficiency' },
+      { label: 'Arsip Produk Jadi', value: '0', icon: 'ShieldCheck', color: 'bg-black text-white', order: 2, isDynamic: true, dynamicKey: 'archives' },
+      { label: 'Permintaan Data', value: '0', icon: 'FileText', color: 'bg-zinc-100', order: 3, isDynamic: true, dynamicKey: 'requests' },
+      { label: 'Staf Aktif', value: '0', icon: 'Users', color: 'bg-zinc-100', order: 4, isDynamic: true, dynamicKey: 'staff' },
     ];
 
     try {
@@ -680,6 +703,7 @@ const Dashboard = ({ user }: { user: any }) => {
       case 'FileText': return FileText;
       case 'Users': return Users;
       case 'Zap': return Zap;
+      case 'ShieldCheck': return ShieldCheck;
       default: return Database;
     }
   };
@@ -689,6 +713,7 @@ const Dashboard = ({ user }: { user: any }) => {
       if (stat.dynamicKey === 'requests') return requestCount.toString();
       if (stat.dynamicKey === 'staff') return staffCount.toString();
       if (stat.dynamicKey === 'docs') return docCount.toString();
+      if (stat.dynamicKey === 'archives') return archiveCount.toString();
       if (stat.dynamicKey === 'efficiency') return efficiency;
     }
     return stat.value;
@@ -866,7 +891,6 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
     { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
     { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
-    { name: 'Arsip Digital', icon: Database, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' }, // Fallback to Informasi Pegawai folder for now
   ];
 
   const getFolderId = (url: string) => {
@@ -1356,6 +1380,454 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           </table>
         </div>
       </div>
+    </div>
+  );
+};
+
+const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string) => void }) => {
+  const [archives, setArchives] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newArchive, setNewArchive] = useState({ 
+    name: '', 
+    category: 'Pengadaan Pegawai', 
+    archiveType: 'Surat Rekomendasi TPP',
+    year: new Date().getFullYear().toString(),
+    updateDate: new Date().toISOString().split('T')[0],
+    description: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
+
+  useEffect(() => {
+    const q = query(collection(db, 'archives'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setArchives(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'archives');
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const archiveFolders = [
+    { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
+    { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
+    { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
+  ];
+
+  const archiveTypes = [
+    'Surat Rekomendasi TPP',
+    'SK Kenaikan Pangkat',
+    'SK Pensiun',
+    'Surat Tugas',
+    'Sertifikat Pelatihan',
+    'Lainnya'
+  ];
+
+  const getFolderId = (url: string) => {
+    const match = url.match(/folders\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+  };
+
+  const handleConnectDrive = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/drive');
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if (token) {
+        setGoogleAccessToken(token);
+      }
+    } catch (error) {
+      console.error('Error connecting to Drive:', error);
+      alert('Gagal menghubungkan ke Google Drive.');
+    }
+  };
+
+  const uploadToGoogleDrive = async (file: File, fileName: string, folderId: string, accessToken: string) => {
+    const metadata = {
+      name: fileName,
+      parents: [folderId],
+    };
+
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    formData.append('file', file);
+
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Gagal mengunggah ke Google Drive');
+    }
+
+    return await response.json();
+  };
+
+  const handleAddArchive = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      alert('Silakan pilih file terlebih dahulu.');
+      return;
+    }
+
+    if (!googleAccessToken) {
+      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+    setErrorMessage(null);
+    
+    try {
+      const fileExtension = file.name.split('.').pop();
+      const sanitizedName = newArchive.name.replace(/[^a-z0-9]/gi, '-').toUpperCase();
+      const customFileName = `ARSIP_${newArchive.year}_${newArchive.archiveType.replace(/\s+/g, '_').toUpperCase()}_${sanitizedName}.${fileExtension}`;
+
+      const categoryObj = archiveFolders.find(c => c.name === newArchive.category);
+      const targetFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
+
+      if (!targetFolderId) {
+        throw new Error('ID Folder Google Drive tidak ditemukan.');
+      }
+
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
+      }, 500);
+
+      const driveResult = await uploadToGoogleDrive(file, customFileName, targetFolderId, googleAccessToken);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      
+      setUploadStatus('saving');
+      await addDoc(collection(db, 'archives'), {
+        ...newArchive,
+        fileName: customFileName,
+        driveFileId: driveResult.id,
+        url: driveResult.webViewLink,
+        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        createdAt: new Date().toISOString(),
+        uploadedBy: user.uid,
+        uploaderName: user.displayName
+      });
+      
+      setUploadStatus('success');
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setUploadStatus('idle');
+        setNewArchive({ 
+          name: '', 
+          category: 'Pengadaan Pegawai', 
+          archiveType: 'Surat Rekomendasi TPP',
+          year: new Date().getFullYear().toString(),
+          updateDate: new Date().toISOString().split('T')[0],
+          description: ''
+        });
+        setFile(null);
+        setUploadProgress(0);
+      }, 1500);
+    } catch (error: any) {
+      setUploadStatus('error');
+      setErrorMessage(error.message || 'Gagal mengunggah arsip.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredArchives = archives.filter(a => 
+    a.name.toLowerCase().includes(search.toLowerCase()) ||
+    a.archiveType.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const stats = [
+    { label: 'Total Arsip', value: archives.length, icon: Database, color: 'bg-black text-white' },
+    { label: 'Rekomendasi TPP', value: archives.filter(a => a.archiveType === 'Surat Rekomendasi TPP').length, icon: FileText, color: 'bg-yellow-400' },
+    { label: 'Update Terbaru', value: archives.length > 0 ? new Date(archives[0].createdAt).toLocaleDateString('id-ID') : '-', icon: Clock, color: 'bg-zinc-100' },
+  ];
+
+  return (
+    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tight">ARSIP DIGITAL PRODUK JADI</h1>
+          <p className="text-zinc-500 mt-2">Penyimpanan dokumen resmi dan surat keputusan hasil olah data Bidang PIK-P.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {isAuthorized && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-black/20"
+            >
+              <PlusCircle size={20} /> UNGGAH ARSIP BARU
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {stats.map((stat, i) => (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            key={i}
+            className={cn("p-6 rounded-3xl shadow-sm border border-black/5 flex items-center justify-between", stat.color)}
+          >
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60">{stat.label}</p>
+              <p className="text-3xl font-black mt-1">{stat.value}</p>
+            </div>
+            <stat.icon size={32} className="opacity-20" />
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        {archiveFolders.map((cat, i) => (
+          <motion.div 
+            whileHover={{ y: -5 }}
+            key={i} 
+            onClick={() => window.open(cat.url, '_blank')}
+            className="bg-white p-6 rounded-3xl border border-black/5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          >
+            <div className="w-12 h-12 bg-zinc-900 text-yellow-400 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <cat.icon size={24} />
+            </div>
+            <h3 className="font-bold text-lg">{cat.name}</h3>
+            <p className="text-sm text-zinc-400 mt-1">{archives.filter(a => a.category === cat.name).length} Arsip Tersimpan</p>
+            <div className="mt-4 flex items-center text-xs font-bold text-zinc-900 uppercase tracking-wider">
+              Buka Folder <ChevronRight size={14} />
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+          <h3 className="font-bold">Daftar Arsip Produk Jadi</h3>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Cari arsip..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
+            />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+              <tr>
+                <th className="px-6 py-4">Nama Arsip</th>
+                <th className="px-6 py-4">Jenis Produk</th>
+                <th className="px-6 py-4">Kategori</th>
+                <th className="px-6 py-4">Tahun</th>
+                <th className="px-6 py-4">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i}>
+                    <td colSpan={5} className="px-6 py-4 h-16 bg-zinc-50/50 animate-pulse" />
+                  </tr>
+                ))
+              ) : filteredArchives.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-zinc-400 font-medium">
+                    Belum ada arsip produk jadi.
+                  </td>
+                </tr>
+              ) : (
+                filteredArchives.map((archive) => (
+                  <tr key={archive.id} className="hover:bg-zinc-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-zinc-900 text-yellow-400 rounded-lg flex items-center justify-center">
+                          <ShieldCheck size={16} />
+                        </div>
+                        <span className="font-bold text-sm">{archive.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">{archive.archiveType}</td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">{archive.category}</td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">{archive.year}</td>
+                    <td className="px-6 py-4">
+                      <button 
+                        onClick={() => window.open(archive.url, '_blank')}
+                        className="text-xs font-bold uppercase tracking-widest text-zinc-900 hover:underline"
+                      >
+                        Buka Arsip
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-black">Unggah Arsip Produk Jadi</h3>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <form onSubmit={handleAddArchive} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">File Produk Jadi (Wajib)</label>
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      onChange={e => setFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                      id="archive-upload"
+                      required
+                    />
+                    <label 
+                      htmlFor="archive-upload"
+                      className={cn(
+                        "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
+                        file ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50"
+                      )}
+                    >
+                      <Upload className={file ? "text-zinc-900" : "text-zinc-400"} size={24} />
+                      <span className="text-sm font-medium text-zinc-600 text-center">
+                        {file ? file.name : 'Klik untuk pilih file produk jadi'}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kategori Data Sumber</label>
+                    <select 
+                      value={newArchive.category}
+                      onChange={e => setNewArchive({...newArchive, category: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                    >
+                      {archiveFolders.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Jenis Produk</label>
+                    <select 
+                      value={newArchive.archiveType}
+                      onChange={e => setNewArchive({...newArchive, archiveType: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                    >
+                      {archiveTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tahun Produk</label>
+                    <input 
+                      required
+                      type="number" 
+                      value={newArchive.year}
+                      onChange={e => setNewArchive({...newArchive, year: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal TTD</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={newArchive.updateDate}
+                      onChange={e => setNewArchive({...newArchive, updateDate: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Nama Dokumen / No. Surat</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={newArchive.name}
+                    onChange={e => setNewArchive({...newArchive, name: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                    placeholder="Contoh: 800/123/BKPSDM/2024"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Keterangan Tambahan</label>
+                  <textarea 
+                    value={newArchive.description}
+                    onChange={e => setNewArchive({...newArchive, description: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900 h-20"
+                    placeholder="Catatan mengenai arsip ini..."
+                  />
+                </div>
+
+                {isSubmitting && (
+                  <div className="space-y-2">
+                    <div className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${uploadProgress}%` }}
+                        className="h-full bg-zinc-900"
+                      />
+                    </div>
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase text-center">
+                      {uploadStatus === 'uploading' ? 'Mengirim ke Drive...' : 'Menyimpan ke Database...'}
+                    </p>
+                  </div>
+                )}
+
+                <button 
+                  disabled={isSubmitting}
+                  className={cn(
+                    "w-full py-4 text-white font-black rounded-2xl transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2",
+                    uploadStatus === 'success' ? "bg-green-500" : 
+                    uploadStatus === 'error' ? "bg-red-500" : "bg-black hover:bg-zinc-800"
+                  )}
+                >
+                  {isSubmitting ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : uploadStatus === 'success' ? 'ARSIP BERHASIL DISIMPAN' : 'UNGGAH ARSIP'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2156,6 +2628,7 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': return <Dashboard user={user} />;
       case 'datacenter': return <DataCenter user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
+      case 'arsipdigital': return <ArsipDigital user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
       case 'requests': return <RequestManagement />;
       case 'workhub': return <WorkHub isAdmin={userData?.role === 'admin'} />;
       case 'berakhlak': return <BerAKHLAK />;
@@ -2191,17 +2664,19 @@ export default function App() {
             {/* Top Bar */}
             <div className="flex items-center justify-between mb-12">
               <div className="flex items-center gap-4">
-                {!isSidebarOpen && (
-                  <button 
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="p-3 bg-yellow-400 text-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all lg:hidden"
-                  >
-                    <Menu size={20} />
-                  </button>
-                )}
                 <div className="hidden lg:block">
                   <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Pagi,</p>
                   <h2 className="text-lg font-bold">{user.displayName || 'Staf PIK-P'}</h2>
+                </div>
+                <div className="lg:hidden">
+                  {!isSidebarOpen && (
+                    <button 
+                      onClick={() => setIsSidebarOpen(true)}
+                      className="p-3 bg-yellow-400 text-black rounded-2xl shadow-lg shadow-yellow-400/20 hover:bg-yellow-500 transition-all"
+                    >
+                      <Menu size={20} />
+                    </button>
+                  )}
                 </div>
               </div>
               
