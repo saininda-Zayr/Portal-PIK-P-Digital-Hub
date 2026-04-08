@@ -1478,6 +1478,8 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     description: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -1631,6 +1633,71 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     }
   };
 
+  const handleSyncArchives = async () => {
+    if (!googleAccessToken) {
+      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
+      return;
+    }
+
+    if (!confirm('Fitur ini akan memindai folder Google Drive Arsip Digital Anda dan mendaftarkan file yang belum tercatat di database. Lanjutkan?')) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncProgress({ current: 0, total: 0 });
+    let addedCount = 0;
+
+    try {
+      for (const cat of archiveFolders) {
+        const folderId = getFolderId(cat.url);
+        if (!folderId) continue;
+
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,size,webViewLink,createdTime)&pageSize=1000`, {
+          headers: { Authorization: `Bearer ${googleAccessToken}` }
+        });
+
+        if (!response.ok) throw new Error(`Gagal membaca folder ${cat.name}`);
+        
+        const data = await response.json();
+        const driveFiles = data.files || [];
+
+        for (const driveFile of driveFiles) {
+          const exists = archives.some(a => a.driveFileId === driveFile.id);
+          
+          if (!exists) {
+            // Try to parse metadata from filename (ARSIP_YEAR_TYPE_NAME.ext)
+            const parts = driveFile.name.split('_');
+            const year = parts[1] && /^\d{4}$/.test(parts[1]) ? parts[1] : new Date(driveFile.createdTime).getFullYear().toString();
+            const archiveType = parts[2] ? parts[2].replace(/_/g, ' ') : 'Arsip Umum';
+            const name = parts[3] ? parts[3].replace(/-/g, ' ').toUpperCase() : driveFile.name.split('.')[0].toUpperCase();
+
+            await addDoc(collection(db, 'archives'), {
+              name: name,
+              category: cat.name,
+              archiveType: archiveType,
+              year: year,
+              updateDate: new Date(driveFile.createdTime).toISOString().split('T')[0],
+              size: driveFile.size ? (parseInt(driveFile.size) / (1024 * 1024)).toFixed(2) + ' MB' : '0 MB',
+              fileName: driveFile.name,
+              driveFileId: driveFile.id,
+              url: driveFile.webViewLink,
+              createdAt: new Date().toISOString(),
+              uploadedBy: user.uid,
+              uploaderName: user.displayName || 'Sistem Sync'
+            });
+            addedCount++;
+          }
+        }
+      }
+      alert(`Sinkronisasi arsip selesai! ${addedCount} arsip baru berhasil didaftarkan.`);
+    } catch (error: any) {
+      console.error('Sync Error:', error);
+      alert('Terjadi kesalahan saat sinkronisasi arsip: ' + error.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const filteredArchives = archives.filter(a => 
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.archiveType.toLowerCase().includes(search.toLowerCase())
@@ -1651,12 +1718,26 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
         </div>
         <div className="flex items-center gap-4">
           {isAuthorized && (
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-black/20"
-            >
-              <PlusCircle size={20} /> UNGGAH ARSIP BARU
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleSyncArchives}
+                disabled={isSyncing}
+                className="flex items-center gap-2 px-6 py-3 bg-zinc-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-lg disabled:opacity-50"
+              >
+                {isSyncing ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Clock size={18} />
+                )}
+                SINKRONKAN DRIVE
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all shadow-lg shadow-black/20"
+              >
+                <PlusCircle size={20} /> UNGGAH ARSIP BARU
+              </button>
+            </div>
           )}
         </div>
       </header>
