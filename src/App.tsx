@@ -869,6 +869,8 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     size: '' 
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -1035,6 +1037,70 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     }
   };
 
+  const handleSyncDrive = async () => {
+    if (!googleAccessToken) {
+      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
+      return;
+    }
+
+    if (!confirm('Fitur ini akan memindai folder Google Drive Anda dan mendaftarkan file yang belum tercatat di database. Lanjutkan?')) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncProgress({ current: 0, total: 0 });
+    let addedCount = 0;
+
+    try {
+      for (const cat of categories) {
+        const folderId = getFolderId(cat.url);
+        if (!folderId) continue;
+
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,size,webViewLink,createdTime)&pageSize=1000`, {
+          headers: { Authorization: `Bearer ${googleAccessToken}` }
+        });
+
+        if (!response.ok) throw new Error(`Gagal membaca folder ${cat.name}`);
+        
+        const data = await response.json();
+        const driveFiles = data.files || [];
+
+        for (const driveFile of driveFiles) {
+          const exists = documents.some(doc => doc.driveFileId === driveFile.id);
+          
+          if (!exists) {
+            const parts = driveFile.name.split('_');
+            const year = parts[0] && /^\d{4}$/.test(parts[0]) ? parts[0] : new Date(driveFile.createdTime).getFullYear().toString();
+            const activityCode = parts[1] || '01';
+            const name = parts[2] ? parts[2].replace(/-/g, ' ').toUpperCase() : driveFile.name.split('.')[0].toUpperCase();
+
+            await addDoc(collection(db, 'documents'), {
+              name: name,
+              category: cat.name,
+              activityCode: activityCode,
+              year: year,
+              updateDate: new Date(driveFile.createdTime).toISOString().split('T')[0],
+              size: driveFile.size ? (parseInt(driveFile.size) / (1024 * 1024)).toFixed(2) + ' MB' : '0 MB',
+              fileName: driveFile.name,
+              driveFileId: driveFile.id,
+              url: driveFile.webViewLink,
+              createdAt: new Date().toISOString(),
+              uploadedBy: user.uid,
+              uploaderName: user.displayName || 'Sistem Sync'
+            });
+            addedCount++;
+          }
+        }
+      }
+      alert(`Sinkronisasi selesai! ${addedCount} dokumen baru berhasil didaftarkan.`);
+    } catch (error: any) {
+      console.error('Sync Error:', error);
+      alert('Terjadi kesalahan saat sinkronisasi: ' + error.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const filteredDocs = documents.filter(doc => 
     doc.name.toLowerCase().includes(search.toLowerCase()) ||
     doc.category.toLowerCase().includes(search.toLowerCase())
@@ -1068,12 +1134,26 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
             </div>
           )}
           {isAuthorized && (
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
-            >
-              <PlusCircle size={20} /> TAMBAH DOKUMEN
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleSyncDrive}
+                disabled={isSyncing}
+                className="flex items-center gap-2 px-6 py-3 bg-zinc-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-lg disabled:opacity-50"
+              >
+                {isSyncing ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Clock size={18} />
+                )}
+                SINKRONKAN DRIVE
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+              >
+                <PlusCircle size={20} /> TAMBAH DOKUMEN
+              </button>
+            </div>
           )}
         </div>
       </header>
