@@ -188,6 +188,109 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
   // In a real app, we might show a toast here
 };
 
+/**
+ * Helper to fetch all files recursively from a Google Drive folder
+ */
+const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: string) => {
+  console.log('Starting recursive fetch for folder:', rootFolderId);
+  let allFiles: any[] = [];
+  let foldersToProcess = [rootFolderId];
+  let processedFolders = new Set<string>();
+
+  try {
+    while (foldersToProcess.length > 0) {
+      const currentFolderId = foldersToProcess.shift();
+      if (!currentFolderId || processedFolders.has(currentFolderId)) continue;
+      processedFolders.add(currentFolderId);
+
+      console.log('Fetching contents for folder:', currentFolderId);
+      let pageToken: string | null = null;
+
+      do {
+        const query = encodeURIComponent(`'${currentFolderId}' in parents and trashed = false`);
+        const fields = encodeURIComponent('nextPageToken, files(id, name, size, webViewLink, createdTime, mimeType)');
+        let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000`;
+        if (pageToken) url += `&pageToken=${pageToken}`;
+
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Drive API Error (${response.status}):`, errorText);
+          if (response.status === 401) {
+            throw new Error('Sesi Google Drive telah berakhir. Silakan hubungkan ulang di menu Pengaturan.');
+          }
+          break; 
+        }
+
+        const data = await response.json();
+        const items = data.files || [];
+        console.log(`Found ${items.length} items in folder ${currentFolderId}`);
+
+        for (const item of items) {
+          if (item.mimeType === 'application/vnd.google-apps.folder') {
+            foldersToProcess.push(item.id);
+          } else {
+            allFiles.push(item);
+          }
+        }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+    }
+    console.log('Recursive fetch completed. Total files found:', allFiles.length);
+    return allFiles;
+  } catch (error: any) {
+    console.error('Error in fetchAllFilesRecursively:', error);
+    throw error;
+  }
+};
+
+/**
+ * Helper to fetch all folder IDs recursively from a Google Drive folder
+ */
+const fetchAllFolderIdsRecursively = async (rootFolderId: string, accessToken: string) => {
+  let allFolderIds: string[] = [rootFolderId];
+  let foldersToProcess = [rootFolderId];
+  let processedFolders = new Set<string>();
+
+  try {
+    while (foldersToProcess.length > 0) {
+      const currentFolderId = foldersToProcess.shift();
+      if (!currentFolderId || processedFolders.has(currentFolderId)) continue;
+      processedFolders.add(currentFolderId);
+
+      let pageToken: string | null = null;
+      do {
+        const query = encodeURIComponent(`'${currentFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+        const fields = encodeURIComponent('nextPageToken, files(id)');
+        let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000`;
+        if (pageToken) url += `&pageToken=${pageToken}`;
+
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        if (!response.ok) break;
+
+        const data = await response.json();
+        const items = data.files || [];
+
+        for (const item of items) {
+          allFolderIds.push(item.id);
+          foldersToProcess.push(item.id);
+        }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+    }
+    return allFolderIds;
+  } catch (error) {
+    console.error('Error in fetchAllFolderIdsRecursively:', error);
+    return allFolderIds;
+  }
+};
+
 // --- Components ---
 
 const PublicRequestForm = ({ onClose }: { onClose: () => void }) => {
@@ -857,7 +960,7 @@ const ACTIVITY_CODES: Record<string, { code: string; label: string }[]> = {
   ]
 };
 
-const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string) => void }) => {
+const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string | null) => void }) => {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -878,6 +981,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
+  const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
 
@@ -938,8 +1042,11 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Gagal mengunggah ke Google Drive');
+      const errorData = await response.json();
+      if (response.status === 401) {
+        throw new Error('Sesi Google Drive telah berakhir. Silakan hubungkan ulang di menu Pengaturan.');
+      }
+      throw new Error(errorData.error?.message || 'Gagal mengunggah ke Google Drive');
     }
 
     return await response.json();
@@ -1032,8 +1139,8 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       console.error('Upload Error:', msg);
       
       // If token is expired or invalid, clear it
-      if (error.message?.includes('invalid') || error.message?.includes('expired') || error.message?.includes('Insufficient permissions')) {
-        sessionStorage.removeItem('google_drive_token');
+      if (error.message?.includes('invalid') || error.message?.includes('expired') || error.message?.includes('Insufficient permissions') || error.message?.includes('Sesi Google Drive telah berakhir')) {
+        setGoogleAccessToken(null);
       }
     } finally {
       setIsSubmitting(false);
@@ -1041,32 +1148,24 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   };
 
   const handleSyncDrive = async () => {
+    console.log('handleSyncDrive triggered');
     if (!googleAccessToken) {
-      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
-      return;
-    }
-
-    if (!confirm('Fitur ini akan memindai folder Google Drive Anda dan mendaftarkan file yang belum tercatat di database. Lanjutkan?')) {
+      setSyncStatus({ message: 'Silakan hubungkan ke Google Drive terlebih dahulu.', type: 'error' });
       return;
     }
 
     setIsSyncing(true);
+    setSyncStatus({ message: 'Memulai sinkronisasi...', type: 'info' });
     setSyncProgress({ current: 0, total: 0 });
     let addedCount = 0;
 
     try {
       for (const cat of categories) {
+        setSyncStatus({ message: `Memindai kategori: ${cat.name}...`, type: 'info' });
         const folderId = getFolderId(cat.url);
         if (!folderId) continue;
 
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,size,webViewLink,createdTime)&pageSize=1000`, {
-          headers: { Authorization: `Bearer ${googleAccessToken}` }
-        });
-
-        if (!response.ok) throw new Error(`Gagal membaca folder ${cat.name}`);
-        
-        const data = await response.json();
-        const driveFiles = data.files || [];
+        const driveFiles = await fetchAllFilesRecursively(folderId, googleAccessToken!);
 
         for (const driveFile of driveFiles) {
           const exists = documents.some(doc => doc.driveFileId === driveFile.id);
@@ -1095,10 +1194,58 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           }
         }
       }
-      alert(`Sinkronisasi selesai! ${addedCount} dokumen baru berhasil didaftarkan.`);
+      setSyncStatus({ message: `Sinkronisasi selesai! ${addedCount} dokumen baru berhasil didaftarkan.`, type: 'success' });
+      setTimeout(() => setSyncStatus(null), 5000);
     } catch (error: any) {
       console.error('Sync Error:', error);
-      alert('Terjadi kesalahan saat sinkronisasi: ' + error.message);
+      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+        setGoogleAccessToken(null);
+      }
+      setSyncStatus({ message: 'Terjadi kesalahan saat sinkronisasi: ' + error.message, type: 'error' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleCleanupFolders = async () => {
+    if (!googleAccessToken) {
+      setSyncStatus({ message: 'Silakan hubungkan ke Google Drive terlebih dahulu.', type: 'error' });
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncStatus({ message: 'Memulai pembersihan data folder...', type: 'info' });
+    let deletedCount = 0;
+
+    try {
+      // 1. Get all folder IDs in the sync scope
+      let allFolderIds: string[] = [];
+      for (const cat of categories) {
+        const folderId = getFolderId(cat.url);
+        if (folderId) {
+          const ids = await fetchAllFolderIdsRecursively(folderId, googleAccessToken);
+          allFolderIds = [...allFolderIds, ...ids];
+        }
+      }
+      
+      const folderIdSet = new Set(allFolderIds);
+      
+      // 2. Check each document in Firestore
+      for (const docItem of documents) {
+        if (docItem.driveFileId && folderIdSet.has(docItem.driveFileId)) {
+          await deleteDoc(doc(db, 'documents', docItem.id));
+          deletedCount++;
+        }
+      }
+      
+      setSyncStatus({ message: `Pembersihan selesai! ${deletedCount} data folder berhasil dihapus dari database.`, type: 'success' });
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (error: any) {
+      console.error('Cleanup Error:', error);
+      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+        setGoogleAccessToken(null);
+      }
+      setSyncStatus({ message: 'Terjadi kesalahan saat pembersihan: ' + error.message, type: 'error' });
     } finally {
       setIsSyncing(false);
     }
@@ -1139,6 +1286,14 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           {isAuthorized && (
             <div className="flex items-center gap-3">
               <button 
+                onClick={handleCleanupFolders}
+                disabled={isSyncing}
+                title="Bersihkan data folder yang terlanjur tersinkron"
+                className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-red-100 text-red-500 font-bold rounded-2xl hover:bg-red-50 transition-all disabled:opacity-50"
+              >
+                <Trash2 size={18} />
+              </button>
+              <button 
                 onClick={handleSyncDrive}
                 disabled={isSyncing}
                 className="flex items-center gap-2 px-6 py-3 bg-zinc-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-lg disabled:opacity-50"
@@ -1160,6 +1315,29 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           )}
         </div>
       </header>
+
+      <AnimatePresence>
+        {syncStatus && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`p-4 rounded-2xl border flex items-center justify-between ${
+              syncStatus.type === 'success' ? 'bg-green-50 border-green-100 text-green-700' :
+              syncStatus.type === 'error' ? 'bg-red-50 border-red-100 text-red-700' :
+              'bg-blue-50 border-blue-100 text-blue-700'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {syncStatus.type === 'info' && <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+              <span className="text-sm font-bold">{syncStatus.message}</span>
+            </div>
+            <button onClick={() => setSyncStatus(null)} className="opacity-50 hover:opacity-100">
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isModalOpen && (
@@ -1482,7 +1660,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   );
 };
 
-const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string) => void }) => {
+const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string | null) => void }) => {
   const [archives, setArchives] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -1503,6 +1681,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
+  const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
 
@@ -1572,8 +1751,11 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Gagal mengunggah ke Google Drive');
+      const errorData = await response.json();
+      if (response.status === 401) {
+        throw new Error('Sesi Google Drive telah berakhir. Silakan hubungkan ulang di menu Pengaturan.');
+      }
+      throw new Error(errorData.error?.message || 'Gagal mengunggah ke Google Drive');
     }
 
     return await response.json();
@@ -1646,39 +1828,35 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       }, 1500);
     } catch (error: any) {
       setUploadStatus('error');
-      setErrorMessage(error.message || 'Gagal mengunggah arsip.');
+      const msg = error.message || 'Gagal mengunggah arsip.';
+      if (msg.includes('Sesi Google Drive telah berakhir')) {
+        setGoogleAccessToken(null);
+      }
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSyncArchives = async () => {
+    console.log('handleSyncArchives triggered');
     if (!googleAccessToken) {
-      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
-      return;
-    }
-
-    if (!confirm('Fitur ini akan memindai folder Google Drive Arsip Digital Anda dan mendaftarkan file yang belum tercatat di database. Lanjutkan?')) {
+      setSyncStatus({ message: 'Silakan hubungkan ke Google Drive terlebih dahulu.', type: 'error' });
       return;
     }
 
     setIsSyncing(true);
+    setSyncStatus({ message: 'Memulai sinkronisasi arsip...', type: 'info' });
     setSyncProgress({ current: 0, total: 0 });
     let addedCount = 0;
 
     try {
       for (const cat of archiveFolders) {
+        setSyncStatus({ message: `Memindai folder arsip: ${cat.name}...`, type: 'info' });
         const folderId = getFolderId(cat.url);
         if (!folderId) continue;
 
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,size,webViewLink,createdTime)&pageSize=1000`, {
-          headers: { Authorization: `Bearer ${googleAccessToken}` }
-        });
-
-        if (!response.ok) throw new Error(`Gagal membaca folder ${cat.name}`);
-        
-        const data = await response.json();
-        const driveFiles = data.files || [];
+        const driveFiles = await fetchAllFilesRecursively(folderId, googleAccessToken!);
 
         for (const driveFile of driveFiles) {
           const exists = archives.some(a => a.driveFileId === driveFile.id);
@@ -1708,10 +1886,58 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           }
         }
       }
-      alert(`Sinkronisasi arsip selesai! ${addedCount} arsip baru berhasil didaftarkan.`);
+      setSyncStatus({ message: `Sinkronisasi arsip selesai! ${addedCount} arsip baru berhasil didaftarkan.`, type: 'success' });
+      setTimeout(() => setSyncStatus(null), 5000);
     } catch (error: any) {
       console.error('Sync Error:', error);
-      alert('Terjadi kesalahan saat sinkronisasi arsip: ' + error.message);
+      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+        setGoogleAccessToken(null);
+      }
+      setSyncStatus({ message: 'Terjadi kesalahan saat sinkronisasi arsip: ' + error.message, type: 'error' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleCleanupArchives = async () => {
+    if (!googleAccessToken) {
+      setSyncStatus({ message: 'Silakan hubungkan ke Google Drive terlebih dahulu.', type: 'error' });
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncStatus({ message: 'Memulai pembersihan data folder arsip...', type: 'info' });
+    let deletedCount = 0;
+
+    try {
+      // 1. Get all folder IDs in the sync scope
+      let allFolderIds: string[] = [];
+      for (const cat of archiveFolders) {
+        const folderId = getFolderId(cat.url);
+        if (folderId) {
+          const ids = await fetchAllFolderIdsRecursively(folderId, googleAccessToken);
+          allFolderIds = [...allFolderIds, ...ids];
+        }
+      }
+      
+      const folderIdSet = new Set(allFolderIds);
+      
+      // 2. Check each archive in Firestore
+      for (const archiveItem of archives) {
+        if (archiveItem.driveFileId && folderIdSet.has(archiveItem.driveFileId)) {
+          await deleteDoc(doc(db, 'archives', archiveItem.id));
+          deletedCount++;
+        }
+      }
+      
+      setSyncStatus({ message: `Pembersihan selesai! ${deletedCount} data folder arsip berhasil dihapus dari database.`, type: 'success' });
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (error: any) {
+      console.error('Cleanup Error:', error);
+      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+        setGoogleAccessToken(null);
+      }
+      setSyncStatus({ message: 'Terjadi kesalahan saat pembersihan: ' + error.message, type: 'error' });
     } finally {
       setIsSyncing(false);
     }
@@ -1748,6 +1974,14 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           {isAuthorized && (
             <div className="flex items-center gap-3">
               <button 
+                onClick={handleCleanupArchives}
+                disabled={isSyncing}
+                title="Bersihkan data folder yang terlanjur tersinkron"
+                className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-red-100 text-red-500 font-bold rounded-2xl hover:bg-red-50 transition-all disabled:opacity-50"
+              >
+                <Trash2 size={18} />
+              </button>
+              <button 
                 onClick={handleSyncArchives}
                 disabled={isSyncing}
                 className="flex items-center gap-2 px-6 py-3 bg-zinc-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-lg disabled:opacity-50"
@@ -1769,6 +2003,29 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           )}
         </div>
       </header>
+
+      <AnimatePresence>
+        {syncStatus && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`p-4 rounded-2xl border flex items-center justify-between ${
+              syncStatus.type === 'success' ? 'bg-green-50 border-green-100 text-green-700' :
+              syncStatus.type === 'error' ? 'bg-red-50 border-red-100 text-red-700' :
+              'bg-blue-50 border-blue-100 text-blue-700'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {syncStatus.type === 'info' && <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+              <span className="text-sm font-bold">{syncStatus.message}</span>
+            </div>
+            <button onClick={() => setSyncStatus(null)} className="opacity-50 hover:opacity-100">
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, i) => (
@@ -2792,9 +3049,13 @@ export default function App() {
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(sessionStorage.getItem('google_drive_token'));
   const userSnapshotUnsubscribe = useRef<(() => void) | null>(null);
 
-  const handleLoginSuccess = (token: string) => {
+  const handleLoginSuccess = (token: string | null) => {
     setGoogleAccessToken(token);
-    sessionStorage.setItem('google_drive_token', token);
+    if (token) {
+      sessionStorage.setItem('google_drive_token', token);
+    } else {
+      sessionStorage.removeItem('google_drive_token');
+    }
   };
 
   useEffect(() => {
