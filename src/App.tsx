@@ -71,6 +71,8 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   signOut,
+  setPersistence,
+  browserSessionPersistence,
   User
 } from 'firebase/auth';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -875,6 +877,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [displayLimit, setDisplayLimit] = useState(10);
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
 
@@ -1379,15 +1382,30 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
           <h3 className="font-bold">File Terbaru</h3>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Cari dokumen..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Tampilkan:</span>
+              <select 
+                value={displayLimit}
+                onChange={(e) => setDisplayLimit(Number(e.target.value))}
+                className="bg-zinc-50 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-yellow-400"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+              <input 
+                type="text" 
+                placeholder="Cari dokumen..." 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -1415,7 +1433,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     Belum ada dokumen yang diunggah.
                   </td>
                 </tr>
-              ) : filteredDocs.map((file, i) => (
+              ) : filteredDocs.slice(0, displayLimit).map((file, i) => (
                 <tr key={i} className="hover:bg-zinc-50 transition-colors group">
                   <td className="px-6 py-4 font-medium">
                     <div className="flex items-center gap-3">
@@ -1484,6 +1502,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [displayLimit, setDisplayLimit] = useState(10);
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
 
@@ -1846,15 +1865,30 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
           <h3 className="font-bold">Daftar Arsip Produk Jadi</h3>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Cari arsip..." 
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Tampilkan:</span>
+              <select 
+                value={displayLimit}
+                onChange={(e) => setDisplayLimit(Number(e.target.value))}
+                className="bg-zinc-50 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-yellow-400"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+              <input 
+                type="text" 
+                placeholder="Cari arsip..." 
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -1882,7 +1916,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                   </td>
                 </tr>
               ) : (
-                filteredArchives.map((archive) => (
+                filteredArchives.slice(0, displayLimit).map((archive) => (
                   <tr key={archive.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -2764,6 +2798,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Set persistence to SESSION (cleared when tab/window is closed)
+    setPersistence(auth, browserSessionPersistence)
+      .catch((error) => console.error("Error setting persistence:", error));
+
     const testConnection = async () => {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
@@ -2821,8 +2859,18 @@ export default function App() {
       setUser(user);
       setAuthReady(true);
     });
+
+    // Handle Network Status (Logout if offline)
+    const handleOffline = () => {
+      alert("Koneksi internet terputus. Anda akan dialihkan ke halaman login untuk keamanan.");
+      signOut(auth);
+    };
+
+    window.addEventListener('offline', handleOffline);
+
     return () => {
       unsubscribe();
+      window.removeEventListener('offline', handleOffline);
       if (userSnapshotUnsubscribe.current) {
         userSnapshotUnsubscribe.current();
       }
