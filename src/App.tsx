@@ -1499,9 +1499,9 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   }, []);
 
   const archiveFolders = [
-    { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
-    { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
-    { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
+    { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1_JGzCdCrP6VcnsHUPKWJZ2pfYTTy-UVa?usp=drive_link' },
+    { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1qRC-sLSkUb-IjLmkb6oGW7PSs117LPIL?usp=drive_link' },
+    { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1aZU2yOdFQcePI4xQo87-EgRQXCWFU_Tt?usp=drive_link' },
   ];
 
   const archiveTypes = [
@@ -1709,6 +1709,15 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     { label: 'Update Terbaru', value: archives.length > 0 ? new Date(archives[0].createdAt).toLocaleDateString('id-ID') : '-', icon: Clock, color: 'bg-zinc-100' },
   ];
 
+  const pieData = Object.entries(
+    archives.reduce((acc: any, curr) => {
+      acc[curr.archiveType] = (acc[curr.archiveType] || 0) + 1;
+      return acc;
+    }, {})
+  ).map(([name, value]) => ({ name, value }));
+
+  const COLORS = ['#000000', '#FACC15', '#71717A', '#E4E4E7', '#FDE047'];
+
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
       <header className="flex items-center justify-between">
@@ -1758,6 +1767,60 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
             <stat.icon size={32} className="opacity-20" />
           </motion.div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-zinc-100 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-black">Statistik Jenis Arsip</h3>
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-400">
+              <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+              BERDASARKAN PRODUK JADI
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-zinc-900 p-8 rounded-[2.5rem] text-white shadow-xl">
+          <h3 className="text-xl font-black mb-6">Keterangan</h3>
+          <div className="space-y-4">
+            {pieData.map((item: any, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl border border-zinc-700/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                  <span className="text-sm font-bold truncate max-w-[150px]">{item.name}</span>
+                </div>
+                <span className="text-lg font-black text-yellow-400">{item.value}</span>
+              </div>
+            ))}
+            {pieData.length === 0 && (
+              <div className="text-center py-8 text-zinc-500 italic">
+                Belum ada data arsip
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
