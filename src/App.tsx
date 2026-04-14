@@ -188,6 +188,11 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
   // In a real app, we might show a toast here
 };
 
+const MONTHS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
 /**
  * Helper to fetch all files recursively from a Google Drive folder
  */
@@ -245,6 +250,54 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
     console.error('Error in fetchAllFilesRecursively:', error);
     throw error;
   }
+};
+
+/**
+ * Helper to find or create a folder in Google Drive
+ */
+const getOrCreateFolder = async (folderName: string, parentId: string, accessToken: string) => {
+  console.log(`Searching or creating folder: ${folderName} in parent: ${parentId}`);
+  // Search for existing folder
+  const query = encodeURIComponent(`name = '${folderName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`;
+  
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Gagal mencari folder: ${folderName}`);
+  }
+  
+  const data = await response.json();
+  if (data.files && data.files.length > 0) {
+    console.log(`Folder found: ${folderName} (${data.files[0].id})`);
+    return data.files[0].id;
+  }
+  
+  console.log(`Folder not found, creating: ${folderName}`);
+  // Create new folder if not found
+  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId]
+    })
+  });
+  
+  if (!createResponse.ok) {
+    const err = await createResponse.json();
+    throw new Error(`Gagal membuat folder: ${folderName} - ${err.error?.message || ''}`);
+  }
+  
+  const createData = await createResponse.json();
+  console.log(`Folder created: ${folderName} (${createData.id})`);
+  return createData.id;
 };
 
 /**
@@ -969,6 +1022,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     name: '', 
     category: 'Pengadaan Pegawai', 
     activityCode: '01',
+    month: MONTHS[new Date().getMonth()],
     year: new Date().getFullYear().toString(),
     updateDate: new Date().toISOString().split('T')[0],
     size: '' 
@@ -1080,18 +1134,33 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       const customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${newDoc.updateDate}.${fileExtension}`;
 
       const categoryObj = categories.find(c => c.name === newDoc.category);
-      const folderId = categoryObj ? getFolderId(categoryObj.url) : null;
+      const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
 
-      if (!folderId) {
+      if (!rootFolderId) {
         throw new Error('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
       }
 
+      setUploadStatus('uploading');
+      setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
+
+      // 1. Get or create Month folder (e.g., "Maret 2026")
+      const monthFolderName = `${newDoc.month} ${newDoc.year}`;
+      const monthFolderId = await getOrCreateFolder(monthFolderName, rootFolderId, googleAccessToken);
+
+      // 2. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
+      const activityObj = ACTIVITY_CODES[newDoc.category]?.find(a => a.code === newDoc.activityCode);
+      const activityFolderName = activityObj ? `${activityObj.code}_${activityObj.label}` : newDoc.activityCode;
+      const finalFolderId = await getOrCreateFolder(activityFolderName, monthFolderId, googleAccessToken);
+
+      // 3. Upload to the final folder
+      setSyncStatus({ message: 'Mengunggah file...', type: 'info' });
+      
       // Simulate progress for Drive upload (since fetch doesn't provide progress easily without XHR)
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
       }, 500);
 
-      const driveResult = await uploadToGoogleDrive(file, customFileName, folderId, googleAccessToken);
+      const driveResult = await uploadToGoogleDrive(file, customFileName, finalFolderId, googleAccessToken);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -1113,6 +1182,9 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       });
       
       setUploadStatus('success');
+      setSyncStatus({ message: 'Dokumen berhasil diunggah!', type: 'success' });
+      setTimeout(() => setSyncStatus(null), 3000);
+
       setTimeout(() => {
         setIsModalOpen(false);
         setUploadStatus('idle');
@@ -1120,6 +1192,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           name: '', 
           category: 'Pengadaan Pegawai', 
           activityCode: '01',
+          month: MONTHS[new Date().getMonth()],
           year: new Date().getFullYear().toString(),
           updateDate: new Date().toISOString().split('T')[0],
           size: '' 
@@ -1129,6 +1202,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       }, 1500);
     } catch (error: any) {
       setUploadStatus('error');
+      setSyncStatus(null);
       let msg = error.message || 'Gagal mengunggah dokumen.';
       
       if (msg.includes('Insufficient permissions') || msg.includes('403')) {
@@ -1469,6 +1543,16 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Bulan Dokumen</label>
+                    <select 
+                      value={newDoc.month}
+                      onChange={e => setNewDoc({...newDoc, month: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    >
+                      {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tahun Dokumen</label>
                     <input 
                       required
@@ -1479,16 +1563,17 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       placeholder="Contoh: 2024"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal Update</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={newDoc.updateDate}
-                      onChange={e => setNewDoc({...newDoc, updateDate: e.target.value})}
-                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal Update</label>
+                  <input 
+                    required
+                    type="date" 
+                    value={newDoc.updateDate}
+                    onChange={e => setNewDoc({...newDoc, updateDate: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -1592,7 +1677,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
               <tr>
                 <th className="px-6 py-4">Nama File / Deskripsi</th>
                 <th className="px-6 py-4">Kategori (Kode)</th>
-                <th className="px-6 py-4">Tahun</th>
+                <th className="px-6 py-4">Bulan/Tahun</th>
                 <th className="px-6 py-4">Update</th>
                 <th className="px-6 py-4">Oleh</th>
                 <th className="px-6 py-4">Aksi</th>
@@ -1636,7 +1721,9 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-500 font-bold">{file.year}</td>
+                  <td className="px-6 py-4 text-sm text-zinc-500 font-bold">
+                    {file.month ? `${file.month} ` : ''}{file.year}
+                  </td>
                   <td className="px-6 py-4 text-sm text-zinc-500">
                     {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
                   </td>
@@ -1669,6 +1756,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     name: '', 
     category: 'Pengadaan Pegawai', 
     archiveType: 'Surat Rekomendasi TPP',
+    month: MONTHS[new Date().getMonth()],
     year: new Date().getFullYear().toString(),
     updateDate: new Date().toISOString().split('T')[0],
     description: ''
@@ -1784,17 +1872,31 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       const customFileName = `ARSIP_${newArchive.year}_${newArchive.archiveType.replace(/\s+/g, '_').toUpperCase()}_${sanitizedName}.${fileExtension}`;
 
       const categoryObj = archiveFolders.find(c => c.name === newArchive.category);
-      const targetFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
+      const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
 
-      if (!targetFolderId) {
+      if (!rootFolderId) {
         throw new Error('ID Folder Google Drive tidak ditemukan.');
       }
+
+      setUploadStatus('uploading');
+      setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
+
+      // 1. Get or create Month folder (e.g., "Maret 2026")
+      const monthFolderName = `${newArchive.month} ${newArchive.year}`;
+      const monthFolderId = await getOrCreateFolder(monthFolderName, rootFolderId, googleAccessToken);
+
+      // 2. Get or create Archive Type folder (e.g., "SURAT_REKOMENDASI_TPP")
+      const archiveFolderName = newArchive.archiveType.replace(/\s+/g, '_').toUpperCase();
+      const finalFolderId = await getOrCreateFolder(archiveFolderName, monthFolderId, googleAccessToken);
+
+      // 3. Upload to the final folder
+      setSyncStatus({ message: 'Mengunggah file...', type: 'info' });
 
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
       }, 500);
 
-      const driveResult = await uploadToGoogleDrive(file, customFileName, targetFolderId, googleAccessToken);
+      const driveResult = await uploadToGoogleDrive(file, customFileName, finalFolderId, googleAccessToken);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -1812,6 +1914,9 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       });
       
       setUploadStatus('success');
+      setSyncStatus({ message: 'Arsip berhasil diunggah!', type: 'success' });
+      setTimeout(() => setSyncStatus(null), 3000);
+
       setTimeout(() => {
         setIsModalOpen(false);
         setUploadStatus('idle');
@@ -1819,6 +1924,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           name: '', 
           category: 'Pengadaan Pegawai', 
           archiveType: 'Surat Rekomendasi TPP',
+          month: MONTHS[new Date().getMonth()],
           year: new Date().getFullYear().toString(),
           updateDate: new Date().toISOString().split('T')[0],
           description: ''
@@ -1828,6 +1934,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       }, 1500);
     } catch (error: any) {
       setUploadStatus('error');
+      setSyncStatus(null);
       const msg = error.message || 'Gagal mengunggah arsip.';
       if (msg.includes('Sesi Google Drive telah berakhir')) {
         setGoogleAccessToken(null);
@@ -2155,7 +2262,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                 <th className="px-6 py-4">Nama Arsip</th>
                 <th className="px-6 py-4">Jenis Produk</th>
                 <th className="px-6 py-4">Kategori</th>
-                <th className="px-6 py-4">Tahun</th>
+                <th className="px-6 py-4">Bulan/Tahun</th>
                 <th className="px-6 py-4">Aksi</th>
               </tr>
             </thead>
@@ -2185,7 +2292,9 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-500">{archive.archiveType}</td>
                     <td className="px-6 py-4 text-sm text-zinc-500">{archive.category}</td>
-                    <td className="px-6 py-4 text-sm text-zinc-500">{archive.year}</td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">
+                      {archive.month ? `${archive.month} ` : ''}{archive.year}
+                    </td>
                     <td className="px-6 py-4">
                       <button 
                         onClick={() => window.open(archive.url, '_blank')}
@@ -2268,6 +2377,16 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Bulan Produk</label>
+                    <select 
+                      value={newArchive.month}
+                      onChange={e => setNewArchive({...newArchive, month: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                    >
+                      {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tahun Produk</label>
                     <input 
                       required
@@ -2277,16 +2396,17 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal TTD</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={newArchive.updateDate}
-                      onChange={e => setNewArchive({...newArchive, updateDate: e.target.value})}
-                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
-                    />
-                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal TTD</label>
+                  <input 
+                    required
+                    type="date" 
+                    value={newArchive.updateDate}
+                    onChange={e => setNewArchive({...newArchive, updateDate: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
+                  />
                 </div>
 
                 <div className="space-y-1">
