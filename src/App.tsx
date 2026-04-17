@@ -12,6 +12,7 @@ import {
   Users, 
   Info, 
   ChevronRight,
+  ArrowLeft,
   Menu,
   X,
   Bell,
@@ -463,7 +464,7 @@ const PublicRequestForm = ({ onClose }: { onClose: () => void }) => {
                   className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
                 >
                   <option>Pengadaan Pegawai</option>
-                  <option>Informasi Pegawai</option>
+                  <option>Informasi Kepegawaiaan</option>
                   <option>Kinerja Pegawai</option>
                   <option>Arsip Digital</option>
                   <option>Lainnya</option>
@@ -988,7 +989,7 @@ const Dashboard = ({ user }: { user: any }) => {
 };
 
 const ACTIVITY_CODES: Record<string, { code: string; label: string }[]> = {
-  'Informasi Pegawai': [
+  'Informasi Kepegawaiaan': [
     { code: '01', label: 'Data Identitas dan Profil Pegawai' },
     { code: '02', label: 'Data Laporan LHKPN' },
     { code: '03', label: 'Data lainnya terkait informasi' },
@@ -1018,6 +1019,15 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewState, setViewState] = useState<{
+    view: 'main' | 'category' | 'activity' | 'year' | 'month' | 'customFolder';
+    category: string | null;
+    activity: string | null;
+    year: string | null;
+    month: string | null;
+    customFolder: string | null;
+  }>({ view: 'main', category: null, activity: null, year: null, month: null, customFolder: null });
+
   const [newDoc, setNewDoc] = useState({ 
     name: '', 
     category: 'Pengadaan Pegawai', 
@@ -1025,7 +1035,10 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     month: MONTHS[new Date().getMonth()],
     year: new Date().getFullYear().toString(),
     updateDate: new Date().toISOString().split('T')[0],
-    size: '' 
+    size: '',
+    jenisAsn: 'PNS',
+    useCustomFolder: false,
+    customFolderName: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -1036,6 +1049,9 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [pieData, setPieData] = useState<any[]>([]);
+  const COLORS = ['#000000', '#FACC15', '#71717A', '#A1A1AA'];
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
 
@@ -1050,9 +1066,31 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // Calculate chart data
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      return MONTHS[d.getMonth()];
+    }).reverse();
+
+    const data = last6Months.map(month => ({
+      name: month,
+      total: documents.filter(doc => doc.month === month).length
+    }));
+    setChartData(data);
+
+    // Calculate pie data
+    const categoriesData = categories.map(cat => ({
+      name: cat.name,
+      value: documents.filter(doc => doc.category === cat.name).length
+    }));
+    setPieData(categoriesData);
+  }, [documents]);
+
   const categories = [
     { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
-    { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
+    { name: 'Informasi Kepegawaiaan', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
     { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
   ];
 
@@ -1131,7 +1169,12 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       console.log('Memulai proses upload ke Google Drive untuk:', file.name);
       const fileExtension = file.name.split('.').pop();
       const sanitizedDesc = newDoc.name.replace(/[^a-z0-9]/gi, '-').toUpperCase();
-      const customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${newDoc.updateDate}.${fileExtension}`;
+      const today = new Date().toISOString().split('T')[0];
+      let customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${today}.${fileExtension}`;
+      
+      if (newDoc.category === 'Informasi Kepegawaiaan') {
+        customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${newDoc.jenisAsn}_${today}.${fileExtension}`;
+      }
 
       const categoryObj = categories.find(c => c.name === newDoc.category);
       const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
@@ -1143,16 +1186,25 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       setUploadStatus('uploading');
       setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
 
-      // 1. Get or create Month folder (e.g., "Maret 2026")
-      const monthFolderName = `${newDoc.month} ${newDoc.year}`;
-      const monthFolderId = await getOrCreateFolder(monthFolderName, rootFolderId, googleAccessToken);
-
-      // 2. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
+      // 1. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
       const activityObj = ACTIVITY_CODES[newDoc.category]?.find(a => a.code === newDoc.activityCode);
       const activityFolderName = activityObj ? `${activityObj.code}_${activityObj.label}` : newDoc.activityCode;
-      const finalFolderId = await getOrCreateFolder(activityFolderName, monthFolderId, googleAccessToken);
+      const activityFolderId = await getOrCreateFolder(activityFolderName, rootFolderId, googleAccessToken);
 
-      // 3. Upload to the final folder
+      // 2. Get or create Year folder (e.g., "2026")
+      const yearFolderId = await getOrCreateFolder(newDoc.year, activityFolderId, googleAccessToken);
+
+      // 3. Get or create Month folder (if not Pengadaan)
+      let finalFolderId = yearFolderId;
+      if (newDoc.category === 'Pengadaan Pegawai') {
+        if (newDoc.useCustomFolder && newDoc.customFolderName) {
+          finalFolderId = await getOrCreateFolder(newDoc.customFolderName, yearFolderId, googleAccessToken);
+        }
+      } else {
+        finalFolderId = await getOrCreateFolder(newDoc.month, yearFolderId, googleAccessToken);
+      }
+
+      // 4. Upload to the final folder
       setSyncStatus({ message: 'Mengunggah file...', type: 'info' });
       
       // Simulate progress for Drive upload (since fetch doesn't provide progress easily without XHR)
@@ -1172,6 +1224,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       setUploadStatus('saving');
       await addDoc(collection(db, 'documents'), {
         ...newDoc,
+        updateDate: today,
         fileName: customFileName,
         driveFileId,
         url: finalUrl,
@@ -1190,12 +1243,15 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         setUploadStatus('idle');
         setNewDoc({ 
           name: '', 
-          category: 'Pengadaan Pegawai', 
-          activityCode: '01',
+          category: viewState.category || 'Pengadaan Pegawai', 
+          activityCode: viewState.activity || '01',
           month: MONTHS[new Date().getMonth()],
-          year: new Date().getFullYear().toString(),
+          year: viewState.year || new Date().getFullYear().toString(),
           updateDate: new Date().toISOString().split('T')[0],
-          size: '' 
+          size: '',
+          jenisAsn: 'PNS',
+          useCustomFolder: false,
+          customFolderName: ''
         });
         setFile(null);
         setUploadProgress(0);
@@ -1379,12 +1435,6 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 )}
                 SINKRONKAN DRIVE
               </button>
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
-              >
-                <PlusCircle size={20} /> TAMBAH DOKUMEN
-              </button>
             </div>
           )}
         </div>
@@ -1445,8 +1495,128 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     </div>
                   </div>
                 )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kategori</label>
+                    <select 
+                      value={newDoc.category}
+                      onChange={e => {
+                        const cat = e.target.value;
+                        setNewDoc({...newDoc, category: cat, activityCode: ACTIVITY_CODES[cat]?.[0]?.code || '01'});
+                      }}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    >
+                      {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kode Kegiatan</label>
+                    <select 
+                      value={newDoc.activityCode}
+                      onChange={e => setNewDoc({...newDoc, activityCode: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    >
+                      {ACTIVITY_CODES[newDoc.category]?.map(item => (
+                        <option key={item.code} value={item.code}>{item.code} - {item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {newDoc.category === 'Informasi Kepegawaiaan' && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Jenis ASN</label>
+                    <select 
+                      value={newDoc.jenisAsn}
+                      onChange={e => setNewDoc({...newDoc, jenisAsn: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="PNS">PNS</option>
+                      <option value="PPPK">PPPK</option>
+                      <option value="PPPK PW">PPPK PW</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  {newDoc.category !== 'Pengadaan Pegawai' && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                        Periode Bulan
+                      </label>
+                      <select 
+                        value={newDoc.month}
+                        onChange={e => setNewDoc({...newDoc, month: e.target.value})}
+                        className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                      >
+                        {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className={cn("space-y-1", newDoc.category === 'Pengadaan Pegawai' ? "col-span-2" : "")}>
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Periode Tahun</label>
+                    <input 
+                      required
+                      type="number" 
+                      value={newDoc.year}
+                      onChange={e => setNewDoc({...newDoc, year: e.target.value})}
+                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                      placeholder="Contoh: 2024"
+                    />
+                  </div>
+                </div>
+
+                {newDoc.category === 'Pengadaan Pegawai' && (
+                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Tambah Folder Baru?</label>
+                      <input 
+                        type="checkbox" 
+                        checked={newDoc.useCustomFolder}
+                        onChange={e => setNewDoc({...newDoc, useCustomFolder: e.target.checked})}
+                        className="w-5 h-5 rounded border-zinc-300 text-yellow-400 focus:ring-yellow-400"
+                      />
+                    </div>
+                    {newDoc.useCustomFolder && (
+                      <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Nama Folder Baru</label>
+                        <input 
+                          required={newDoc.useCustomFolder}
+                          type="text" 
+                          value={newDoc.customFolderName}
+                          onChange={e => setNewDoc({...newDoc, customFolderName: e.target.value})}
+                          className="w-full p-2.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 text-sm"
+                          placeholder="Contoh: BERKAS SELEKSI KOMPETENSI"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Upload File (Wajib)</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Nama File Baru</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={newDoc.name}
+                    onChange={e => setNewDoc({...newDoc, name: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    placeholder="Contoh: SK KENAIKAN PANGKAT"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Ukuran File (Opsional)</label>
+                  <input 
+                    type="text" 
+                    value={newDoc.size}
+                    onChange={e => setNewDoc({...newDoc, size: e.target.value})}
+                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
+                    placeholder="Contoh: 2.4 MB"
+                  />
+                </div>
+
+                <div className="space-y-1 pt-4 border-t border-zinc-100">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Upload Berkas (Wajib)</label>
                   <div className="relative">
                     <input 
                       type="file" 
@@ -1454,7 +1624,6 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                         const selectedFile = e.target.files?.[0] || null;
                         setFile(selectedFile);
                         if (selectedFile) {
-                          // Pre-fill name if empty
                           if (!newDoc.name) {
                             const nameWithoutExt = selectedFile.name.split('.').slice(0, -1).join('.');
                             setNewDoc(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
@@ -1469,14 +1638,13 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       htmlFor="file-upload"
                       className={cn(
                         "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
-                        file ? "border-green-400 bg-green-50" : "border-zinc-200 hover:border-yellow-400 hover:bg-yellow-50"
+                        file ? "border-yellow-400 bg-yellow-50" : "border-zinc-200 hover:border-yellow-400 hover:bg-zinc-50"
                       )}
                     >
-                      <Upload className={file ? "text-green-500" : "text-zinc-400"} size={24} />
+                      <Upload className={file ? "text-yellow-600" : "text-zinc-400"} size={24} />
                       <span className="text-sm font-medium text-zinc-600 text-center">
                         {file ? file.name : 'Klik untuk pilih file atau seret ke sini'}
                       </span>
-                      <span className="text-xs text-zinc-400">Mendukung semua jenis file</span>
                     </label>
                   </div>
                   
@@ -1512,91 +1680,6 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     </div>
                   )}
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kategori</label>
-                    <select 
-                      value={newDoc.category}
-                      onChange={e => {
-                        const cat = e.target.value;
-                        setNewDoc({...newDoc, category: cat, activityCode: ACTIVITY_CODES[cat]?.[0]?.code || '01'});
-                      }}
-                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    >
-                      {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Kode Kegiatan</label>
-                    <select 
-                      value={newDoc.activityCode}
-                      onChange={e => setNewDoc({...newDoc, activityCode: e.target.value})}
-                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    >
-                      {ACTIVITY_CODES[newDoc.category]?.map(item => (
-                        <option key={item.code} value={item.code}>{item.code} - {item.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Bulan Dokumen</label>
-                    <select 
-                      value={newDoc.month}
-                      onChange={e => setNewDoc({...newDoc, month: e.target.value})}
-                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    >
-                      {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tahun Dokumen</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={newDoc.year}
-                      onChange={e => setNewDoc({...newDoc, year: e.target.value})}
-                      className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                      placeholder="Contoh: 2024"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tanggal Update</label>
-                  <input 
-                    required
-                    type="date" 
-                    value={newDoc.updateDate}
-                    onChange={e => setNewDoc({...newDoc, updateDate: e.target.value})}
-                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Deskripsi Data (Nama Dokumen)</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={newDoc.name}
-                    onChange={e => setNewDoc({...newDoc, name: e.target.value})}
-                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    placeholder="Contoh: SK KENAIKAN PANGKAT"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Ukuran File (Opsional)</label>
-                  <input 
-                    type="text" 
-                    value={newDoc.size}
-                    onChange={e => setNewDoc({...newDoc, size: e.target.value})}
-                    className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    placeholder="Contoh: 2.4 MB"
-                  />
-                </div>
                 <button 
                   disabled={isSubmitting}
                   className={cn(
@@ -1622,127 +1705,604 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {categories.map((cat, i) => (
-          <motion.div 
-            whileHover={{ y: -5 }}
-            key={i} 
-            onClick={() => window.open(cat.url, '_blank')}
-            className="bg-white p-6 rounded-3xl border border-black/5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-          >
-            <div className="w-12 h-12 bg-yellow-400 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <cat.icon size={24} />
-            </div>
-            <h3 className="font-bold text-lg">{cat.name}</h3>
-            <p className="text-sm text-zinc-400 mt-1">{getCategoryCount(cat.name)} File Tersimpan</p>
-            <div className="mt-4 flex items-center text-xs font-bold text-yellow-600 uppercase tracking-wider">
-              Buka Folder <ChevronRight size={14} />
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {viewState.view !== 'main' && (
+        <button 
+          onClick={() => {
+            if (viewState.view === 'month') setViewState({ ...viewState, view: 'year', month: null });
+            else if (viewState.view === 'year') setViewState({ ...viewState, view: 'activity', year: null });
+            else if (viewState.view === 'activity') setViewState({ ...viewState, view: 'category', activity: null });
+            else if (viewState.view === 'category') setViewState({ ...viewState, view: 'main', category: null });
+          }}
+          className="flex items-center gap-2 text-sm font-bold text-zinc-500 hover:text-black transition-colors mb-4"
+        >
+          <ArrowLeft size={16} /> Kembali
+        </button>
+      )}
 
-      <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-          <h3 className="font-bold">File Terbaru</h3>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Tampilkan:</span>
-              <select 
-                value={displayLimit}
-                onChange={(e) => setDisplayLimit(Number(e.target.value))}
-                className="bg-zinc-50 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-yellow-400"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+      {viewState.view === 'main' ? (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="font-bold text-xl flex items-center gap-2">
+                  <BarChart3 className="text-yellow-500" /> Statistik Input Data
+                </h3>
+                <select className="bg-zinc-50 border-none text-sm font-medium rounded-lg px-3 py-1">
+                  <option>6 Bulan Terakhir</option>
+                </select>
+              </div>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                    />
+                    <Bar dataKey="data" name="Input Dokumen" fill="#FACC15" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="requests" name="Permintaan Data" fill="#000000" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-              <input 
-                type="text" 
-                placeholder="Cari dokumen..." 
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
-              />
+
+            <div className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
+              <h3 className="font-bold text-xl mb-8 flex items-center gap-2">
+                <Database className="text-yellow-500" /> Distribusi Kategori Data
+              </h3>
+              <div className="h-[300px] w-full flex items-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-4 pr-8">
+                  {pieData.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i] }} />
+                      <span className="text-sm font-medium">{item.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categories.map((cat, i) => (
+              <motion.div 
+                whileHover={{ y: -5 }}
+                key={i} 
+                onClick={() => setViewState({ ...viewState, view: 'category', category: cat.name })}
+                className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="w-14 h-14 bg-yellow-400 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <cat.icon size={28} />
+                </div>
+                <h3 className="font-bold text-xl">{cat.name}</h3>
+                <p className="text-sm text-zinc-400 mt-2">{getCategoryCount(cat.name)} File Tersimpan</p>
+                <div className="mt-6 flex items-center text-xs font-bold text-yellow-600 uppercase tracking-wider">
+                  Buka Kegiatan <ChevronRight size={14} />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </>
+      ) : viewState.view === 'category' ? (
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 mb-2">
+            <button 
+              onClick={() => setViewState({ ...viewState, view: 'main', category: null })}
+              className="p-2 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-all"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <h2 className="text-2xl font-black">{viewState.category}</h2>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-zinc-500 font-medium">Pilih sub-kegiatan di bawah ini</p>
+            <button 
+              onClick={() => {
+                setNewDoc({ 
+                  ...newDoc, 
+                  category: viewState.category!, 
+                  activityCode: ACTIVITY_CODES[viewState.category!][0].code,
+                  jenisAsn: 'PNS',
+                  useCustomFolder: false,
+                  customFolderName: ''
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+            >
+              <PlusCircle size={20} /> TAMBAH DOKUMEN
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {ACTIVITY_CODES[viewState.category!]?.map((activity, i) => (
+              <motion.div 
+                whileHover={{ y: -5 }}
+                key={i} 
+                onClick={() => setViewState({ ...viewState, view: 'activity', activity: activity.code })}
+                className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+              >
+                <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center mb-6 group-hover:bg-yellow-100 transition-colors">
+                  <FileText className="text-zinc-400 group-hover:text-yellow-600" size={24} />
+                </div>
+                <h3 className="font-bold text-lg leading-tight">{activity.label}</h3>
+                <div className="mt-6 flex items-center text-xs font-bold text-zinc-400 uppercase tracking-wider group-hover:text-yellow-600">
+                  Lihat Periode <ChevronRight size={14} />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      ) : viewState.view === 'activity' ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setViewState({ ...viewState, view: 'category', activity: null })}
+                className="p-2 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-all"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-black">{ACTIVITY_CODES[viewState.category!]?.find(a => a.code === viewState.activity)?.label}</h2>
+                <p className="text-zinc-500">Pilih periode tahun dokumen</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setNewDoc({ 
+                  ...newDoc, 
+                  category: viewState.category!, 
+                  activityCode: viewState.activity!,
+                  jenisAsn: 'PNS',
+                  useCustomFolder: false,
+                  customFolderName: ''
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+            >
+              <PlusCircle size={20} /> TAMBAH DOKUMEN
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+              <button 
+                key={year}
+                onClick={() => setViewState({ ...viewState, view: 'year', year: year.toString() })}
+                className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all text-center group"
+              >
+                <span className="text-xl font-black group-hover:text-yellow-600">{year}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : viewState.view === 'year' ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setViewState({ ...viewState, view: 'activity', year: null })}
+                className="p-2 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-all"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-black">Periode {viewState.year}</h2>
+                <p className="text-zinc-500">{ACTIVITY_CODES[viewState.category!]?.find(a => a.code === viewState.activity)?.label}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setNewDoc({ 
+                  ...newDoc, 
+                  category: viewState.category!, 
+                  activityCode: viewState.activity!, 
+                  year: viewState.year!,
+                  jenisAsn: 'PNS',
+                  useCustomFolder: false,
+                  customFolderName: ''
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+            >
+              <PlusCircle size={20} /> TAMBAH DOKUMEN
+            </button>
+          </div>
+          
+          {viewState.category === 'Pengadaan Pegawai' ? (
+            <div className="space-y-6">
+              {/* Folders & Documents for Pengadaan */}
+              {(() => {
+                const yearDocs = documents.filter(d => 
+                  d.category === viewState.category && 
+                  d.activityCode === viewState.activity && 
+                  d.year === viewState.year
+                );
+                
+                const customFolders = Array.from(new Set(
+                  yearDocs.filter(d => d.customFolderName).map(d => d.customFolderName)
+                ));
+                
+                const rootDocs = yearDocs.filter(d => !d.customFolderName);
+                
+                return (
+                  <div className="space-y-8">
+                    {customFolders.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {customFolders.map(folder => (
+                          <motion.button 
+                            key={folder}
+                            whileHover={{ y: -5 }}
+                            onClick={() => setViewState({ ...viewState, view: 'customFolder', customFolder: folder })}
+                            className="bg-white p-6 rounded-3xl border border-black/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 text-left group"
+                          >
+                            <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600 shrink-0">
+                              <Database size={24} />
+                            </div>
+                            <span className="font-bold text-sm leading-tight uppercase line-clamp-2">{folder}</span>
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+                      <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+                        <h3 className="font-bold">Daftar Dokumen</h3>
+                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{rootDocs.length} File</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                            <tr>
+                              <th className="px-6 py-4">Nama File</th>
+                              <th className="px-6 py-4">Update</th>
+                              <th className="px-6 py-4">Oleh</th>
+                              <th className="px-6 py-4 text-right">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-100">
+                            {rootDocs.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-sm">Belum ada dokumen di tahun ini.</td>
+                              </tr>
+                            ) : rootDocs.map((file, i) => (
+                              <tr key={i} className="hover:bg-zinc-50 transition-colors group">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <FileText size={16} className="text-zinc-400" />
+                                    <span className="text-sm font-bold">{file.fileName || file.name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-zinc-500">
+                                  {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
+                                <td className="px-6 py-4 text-right">
+                                  <button 
+                                    onClick={() => file.url && window.open(file.url, '_blank')}
+                                    className="text-xs font-black text-yellow-600 hover:underline"
+                                    disabled={!file.url}
+                                  >
+                                    LIHAT
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {MONTHS.map(month => (
+                <button 
+                  key={month}
+                  onClick={() => setViewState({ ...viewState, view: 'month', month: month })}
+                  className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all text-center group"
+                >
+                  <span className="font-bold group-hover:text-yellow-600">{month}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : viewState.view === 'customFolder' ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setViewState({ ...viewState, view: 'year', customFolder: null })}
+                className="p-2 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-all"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-black">{viewState.customFolder}</h2>
+                <p className="text-zinc-500">{viewState.year} - {ACTIVITY_CODES[viewState.category!]?.find(a => a.code === viewState.activity)?.label}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setNewDoc({ 
+                  ...newDoc, 
+                  category: viewState.category!, 
+                  activityCode: viewState.activity!, 
+                  year: viewState.year!,
+                  jenisAsn: 'PNS',
+                  useCustomFolder: true,
+                  customFolderName: viewState.customFolder || ''
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+            >
+              <PlusCircle size={20} /> TAMBAH DOKUMEN
+            </button>
+          </div>
+          
+          <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+              <h3 className="font-bold">Daftar Dokumen dalam Folder</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  <tr>
+                    <th className="px-6 py-4">Nama File</th>
+                    <th className="px-6 py-4">Update</th>
+                    <th className="px-6 py-4">Oleh</th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {documents
+                    .filter(d => 
+                      d.category === viewState.category && 
+                      d.activityCode === viewState.activity && 
+                      d.year === viewState.year && 
+                      d.customFolderName === viewState.customFolder
+                    )
+                    .map((file, i) => (
+                      <tr key={i} className="hover:bg-zinc-50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <FileText size={16} className="text-zinc-400" />
+                            <span className="text-sm font-bold">{file.fileName || file.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-500">
+                          {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => file.url && window.open(file.url, '_blank')}
+                            className="text-xs font-black text-yellow-600 hover:underline"
+                            disabled={!file.url}
+                          >
+                            LIHAT
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
-              <tr>
-                <th className="px-6 py-4">Nama File / Deskripsi</th>
-                <th className="px-6 py-4">Kategori (Kode)</th>
-                <th className="px-6 py-4">Bulan/Tahun</th>
-                <th className="px-6 py-4">Update</th>
-                <th className="px-6 py-4">Oleh</th>
-                <th className="px-6 py-4">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {loading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-6 py-4 h-16 bg-zinc-50/50" />
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setViewState({ ...viewState, view: 'year', month: null })}
+                className="p-2 bg-white border border-zinc-200 rounded-xl hover:bg-zinc-50 transition-all"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h2 className="text-2xl font-black">{viewState.month} {viewState.year}</h2>
+                <p className="text-zinc-500">{ACTIVITY_CODES[viewState.category!]?.find(a => a.code === viewState.activity)?.label}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setNewDoc({ 
+                  ...newDoc, 
+                  category: viewState.category!, 
+                  activityCode: viewState.activity!, 
+                  year: viewState.year!, 
+                  month: viewState.month!,
+                  jenisAsn: 'PNS',
+                  useCustomFolder: false,
+                  customFolderName: ''
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
+            >
+              <PlusCircle size={20} /> TAMBAH DOKUMEN
+            </button>
+          </div>
+          <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-zinc-100">
+              <h3 className="font-bold">Daftar Dokumen</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  <tr>
+                    <th className="px-6 py-4">Nama File</th>
+                    <th className="px-6 py-4">Update</th>
+                    <th className="px-6 py-4">Oleh</th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
                   </tr>
-                ))
-              ) : filteredDocs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-400 text-sm">
-                    Belum ada dokumen yang diunggah.
-                  </td>
-                </tr>
-              ) : filteredDocs.slice(0, displayLimit).map((file, i) => (
-                <tr key={i} className="hover:bg-zinc-50 transition-colors group">
-                  <td className="px-6 py-4 font-medium">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600">
-                        <FileText size={16} />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm text-black font-bold truncate max-w-[200px]" title={file.fileName || file.name}>
-                          {file.fileName || file.name}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 uppercase tracking-tight">
-                          {file.name}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-zinc-600">{file.category}</span>
-                      <span className="text-[10px] font-bold text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded w-fit">
-                        KODE: {file.activityCode}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-zinc-500 font-bold">
-                    {file.month ? `${file.month} ` : ''}{file.year}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-zinc-500">
-                    {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
-                  <td className="px-6 py-4">
-                    <button 
-                      onClick={() => file.url && window.open(file.url, '_blank')}
-                      className="px-4 py-2 bg-black text-white text-[10px] font-black rounded-lg hover:bg-zinc-800 transition-all uppercase tracking-widest disabled:opacity-30"
-                      disabled={!file.url}
-                    >
-                      Buka
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {documents
+                    .filter(d => 
+                      d.category === viewState.category && 
+                      d.activityCode === viewState.activity && 
+                      d.year === viewState.year && 
+                      (viewState.category === 'Pengadaan Pegawai' || d.month === viewState.month)
+                    )
+                    .map((file, i) => (
+                      <tr key={i} className="hover:bg-zinc-50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <FileText size={16} className="text-zinc-400" />
+                            <span className="text-sm font-bold">{file.fileName || file.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-500">
+                          {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => file.url && window.open(file.url, '_blank')}
+                            className="text-xs font-black text-yellow-600 hover:underline"
+                            disabled={!file.url}
+                          >
+                            LIHAT
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {viewState.view === 'main' && (
+        <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+            <h3 className="font-bold">File Terbaru</h3>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Tampilkan:</span>
+                <select 
+                  value={displayLimit}
+                  onChange={(e) => setDisplayLimit(Number(e.target.value))}
+                  className="bg-zinc-50 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-yellow-400"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Cari dokumen..." 
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                <tr>
+                  <th className="px-6 py-4">Nama File / Deskripsi</th>
+                  <th className="px-6 py-4">Kategori (Kode)</th>
+                  <th className="px-6 py-4">Bulan/Tahun</th>
+                  <th className="px-6 py-4">Update</th>
+                  <th className="px-6 py-4">Oleh</th>
+                  <th className="px-6 py-4">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td colSpan={6} className="px-6 py-4 h-16 bg-zinc-50/50" />
+                    </tr>
+                  ))
+                ) : filteredDocs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-zinc-400 text-sm">
+                      Belum ada dokumen yang diunggah.
+                    </td>
+                  </tr>
+                ) : filteredDocs.slice(0, displayLimit).map((file, i) => (
+                  <tr key={i} className="hover:bg-zinc-50 transition-colors group">
+                    <td className="px-6 py-4 font-medium">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600">
+                          <FileText size={16} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm text-black font-bold truncate max-w-[200px]" title={file.fileName || file.name}>
+                            {file.fileName || file.name}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 uppercase tracking-tight">
+                            {file.name}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-zinc-600">{file.category}</span>
+                        <span className="text-[10px] font-bold text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded w-fit">
+                          KODE: {file.activityCode}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-zinc-500 font-bold">
+                      {file.month ? `${file.month} ` : ''}{file.year}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">
+                      {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
+                    <td className="px-6 py-4">
+                      <button 
+                        onClick={() => file.url && window.open(file.url, '_blank')}
+                        className="px-4 py-2 bg-black text-white text-[10px] font-black rounded-lg hover:bg-zinc-800 transition-all uppercase tracking-widest disabled:opacity-30"
+                        disabled={!file.url}
+                      >
+                        Buka
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1786,7 +2346,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
 
   const archiveFolders = [
     { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1_JGzCdCrP6VcnsHUPKWJZ2pfYTTy-UVa?usp=drive_link' },
-    { name: 'Informasi Pegawai', icon: FileText, url: 'https://drive.google.com/drive/folders/1qRC-sLSkUb-IjLmkb6oGW7PSs117LPIL?usp=drive_link' },
+    { name: 'Informasi Kepegawaiaan', icon: FileText, url: 'https://drive.google.com/drive/folders/1qRC-sLSkUb-IjLmkb6oGW7PSs117LPIL?usp=drive_link' },
     { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1aZU2yOdFQcePI4xQo87-EgRQXCWFU_Tt?usp=drive_link' },
   ];
 
