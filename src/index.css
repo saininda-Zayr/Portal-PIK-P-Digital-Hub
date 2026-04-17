@@ -26,3 +26,26 @@
     transform: translateY(0);
   }
 }
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .sidebar-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-black/10 rounded-full;
+  }
+  .sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+    @apply bg-black/20;
+  }
+}

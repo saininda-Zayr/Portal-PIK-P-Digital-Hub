@@ -679,7 +679,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
           </button>
         </div>
 
-        <nav className="p-4 space-y-2 flex-1">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto sidebar-scrollbar pr-2">
           {menuItems.map((item) => (
             <button
               key={item.id}
@@ -706,10 +706,23 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
           ))}
         </nav>
 
-        <div className={cn("absolute bottom-8 left-0 w-full px-6", !isOpen && "lg:hidden")}>
-          <div className="bg-black/5 p-4 rounded-2xl border border-black/10">
-            <p className="text-xs font-bold uppercase tracking-wider opacity-60 mb-2">BKPSDM Polman</p>
-            <p className="text-sm font-medium">Bidang PIK-P</p>
+        <div className={cn("p-6 mt-auto", !isOpen && "lg:hidden")}>
+          <div className="bg-black/[0.03] p-4 rounded-[2rem] border border-black/5 flex items-center gap-3 transition-all hover:bg-black/[0.06] group/profile">
+            <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center p-1 shrink-0 overflow-hidden relative border border-black/5">
+              <img 
+                src="/logo-polman.png" 
+                alt="Logo Polman" 
+                className="w-full h-full object-contain relative z-10 brightness-[0.95] contrast-[1.05]"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-black/5">
+                <Database size={14} />
+              </div>
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 truncate leading-none mb-1">BKPSDM Polman</p>
+              <p className="text-xs font-black truncate text-black/80">Bidang PIK-P</p>
+            </div>
           </div>
         </div>
       </motion.aside>
