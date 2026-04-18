@@ -1580,13 +1580,56 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 </div>
 
                 {newDoc.category === 'Pengadaan Pegawai' && (
-                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Tambah Folder Baru?</label>
+                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Pilih Folder (Opsional)</label>
+                      {(() => {
+                        const existingFolders = Array.from(new Set(
+                          documents
+                            .filter(d => 
+                              d.category === 'Pengadaan Pegawai' && 
+                              d.activityCode === newDoc.activityCode && 
+                              d.year === newDoc.year && 
+                              d.customFolderName
+                            )
+                            .map(d => d.customFolderName)
+                        ));
+                        
+                        return (
+                          <select 
+                            value={newDoc.useCustomFolder ? "" : newDoc.customFolderName}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val) {
+                                setNewDoc({...newDoc, customFolderName: val, useCustomFolder: false});
+                              } else {
+                                setNewDoc({...newDoc, customFolderName: '', useCustomFolder: false});
+                              }
+                            }}
+                            className="w-full p-2.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 text-sm"
+                          >
+                            <option value="">-- Letakkan di Luar Folder --</option>
+                            {existingFolders.map(folder => (
+                              <option key={folder} value={folder}>{folder}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-zinc-200">
+                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Atau Buat Folder Baru?</label>
                       <input 
                         type="checkbox" 
                         checked={newDoc.useCustomFolder}
-                        onChange={e => setNewDoc({...newDoc, useCustomFolder: e.target.checked})}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setNewDoc({
+                            ...newDoc, 
+                            useCustomFolder: checked, 
+                            customFolderName: checked ? '' : newDoc.customFolderName 
+                          });
+                        }}
                         className="w-5 h-5 rounded border-zinc-300 text-yellow-400 focus:ring-yellow-400"
                       />
                     </div>
@@ -1897,15 +1940,23 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
             </button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
-              <button 
-                key={year}
-                onClick={() => setViewState({ ...viewState, view: 'year', year: year.toString() })}
-                className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all text-center group"
-              >
-                <span className="text-xl font-black group-hover:text-yellow-600">{year}</span>
-              </button>
-            ))}
+            {(() => {
+              const defaultYears = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+              const docYears = documents
+                .filter(d => d.category === viewState.category && d.activityCode === viewState.activity)
+                .map(d => d.year);
+              const allYears = Array.from(new Set([...defaultYears, ...docYears])).sort((a, b) => Number(b) - Number(a));
+              
+              return allYears.map(year => (
+                <button 
+                  key={year}
+                  onClick={() => setViewState({ ...viewState, view: 'year', year: year })}
+                  className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all text-center group"
+                >
+                  <span className="text-xl font-black group-hover:text-yellow-600">{year}</span>
+                </button>
+              ));
+            })()}
           </div>
         </div>
       ) : viewState.view === 'year' ? (
