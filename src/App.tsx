@@ -3427,14 +3427,12 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
                 <span className="font-bold px-4 py-2 bg-zinc-50 rounded-xl text-sm">
                   {new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(today)}
                 </span>
-                {isAdmin && (
-                  <button 
-                    onClick={() => setShowAddModal('event')}
-                    className="p-2 bg-yellow-400 text-black rounded-xl hover:bg-yellow-500 transition-all shadow-sm"
-                  >
-                    <Plus size={20} />
-                  </button>
-                )}
+                <button 
+                  onClick={() => setShowAddModal('event')}
+                  className="p-2 bg-yellow-400 text-black rounded-xl hover:bg-yellow-500 transition-all shadow-sm"
+                >
+                  <Plus size={20} />
+                </button>
               </div>
             </div>
             <div className="grid grid-cols-7 gap-2">
@@ -3485,14 +3483,12 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
           <div className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-bold text-xl">Tugas Tim PIK-P</h3>
-              {isAdmin && (
-                <button 
-                  onClick={() => setShowAddModal('task')}
-                  className="p-2 bg-zinc-900 text-white rounded-xl hover:bg-black transition-all"
-                >
-                  <Plus size={20} />
-                </button>
-              )}
+              <button 
+                onClick={() => setShowAddModal('task')}
+                className="p-2 bg-zinc-900 text-white rounded-xl hover:bg-black transition-all"
+              >
+                <Plus size={20} />
+              </button>
             </div>
             <div className="space-y-4">
               {tasks.length === 0 ? (
@@ -3543,14 +3539,12 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
           <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
           <div className="flex items-center justify-between mb-8 relative z-10">
             <h3 className="font-bold text-xl">Papan Pengumuman</h3>
-            {isAdmin && (
-              <button 
-                onClick={() => setShowAddModal('announcement')}
-                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
-              >
-                <Plus size={20} />
-              </button>
-            )}
+            <button 
+              onClick={() => setShowAddModal('announcement')}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+            >
+              <Plus size={20} />
+            </button>
           </div>
           <div className="space-y-8 relative z-10 flex-1">
             {announcements.length === 0 ? (
