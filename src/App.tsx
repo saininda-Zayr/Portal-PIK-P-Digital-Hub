@@ -3259,7 +3259,11 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+  // Adjust padding for Monday start (Date.getDay() 0 is Sunday, 1 is Monday)
+  const padding = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
   const calendar = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const calendarWithPadding = [...Array(padding).fill(null), ...calendar];
 
   useEffect(() => {
     const qEvents = query(collection(db, 'events'), orderBy('date', 'asc'));
@@ -3439,7 +3443,10 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
               {days.map(day => (
                 <div key={day} className="text-center text-xs font-bold text-zinc-400 py-2 uppercase tracking-widest">{day}</div>
               ))}
-              {calendar.map(date => {
+              {calendarWithPadding.map((date, index) => {
+                if (date === null) {
+                  return <div key={`padding-${index}`} className="aspect-square" />;
+                }
                 const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
                 const dayEvents = events.filter(e => e.date === dateStr);
                 const isToday = date === today.getDate();
@@ -3460,14 +3467,12 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
                           {dayEvents.map((e, i) => (
                             <div key={i} className="flex items-center justify-between gap-2 mb-1 last:mb-0">
                               <span className="font-bold truncate">{e.title}</span>
-                              {isAdmin && (
-                                <button 
-                                  onClick={(ev) => { ev.stopPropagation(); deleteItem('events', e.id); }}
-                                  className="text-rose-400 hover:text-rose-300 pointer-events-auto"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              )}
+                              <button 
+                                onClick={(ev) => { ev.stopPropagation(); deleteItem('events', e.id); }}
+                                className="text-rose-400 hover:text-rose-300 pointer-events-auto"
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             </div>
                           ))}
                         </div>
