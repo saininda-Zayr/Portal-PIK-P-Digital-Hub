@@ -200,20 +200,21 @@ const MONTHS = [
 const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: string) => {
   console.log('Starting recursive fetch for folder:', rootFolderId);
   let allFiles: any[] = [];
-  let foldersToProcess = [rootFolderId];
+  // Use objects to track metadata during traversal
+  let foldersToProcess = [{ id: rootFolderId, name: 'root' }];
   let processedFolders = new Set<string>();
 
   try {
     while (foldersToProcess.length > 0) {
-      const currentFolderId = foldersToProcess.shift();
-      if (!currentFolderId || processedFolders.has(currentFolderId)) continue;
-      processedFolders.add(currentFolderId);
+      const currentFolder = foldersToProcess.shift();
+      if (!currentFolder || processedFolders.has(currentFolder.id)) continue;
+      processedFolders.add(currentFolder.id);
 
-      console.log('Fetching contents for folder:', currentFolderId);
+      console.log('Fetching contents for folder:', currentFolder.name);
       let pageToken: string | null = null;
 
       do {
-        const query = encodeURIComponent(`'${currentFolderId}' in parents and trashed = false`);
+        const query = encodeURIComponent(`'${currentFolder.id}' in parents and trashed = false`);
         const fields = encodeURIComponent('nextPageToken, files(id, name, size, webViewLink, createdTime, mimeType)');
         let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=1000`;
         if (pageToken) url += `&pageToken=${pageToken}`;
@@ -233,19 +234,21 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
 
         const data = await response.json();
         const items = data.files || [];
-        console.log(`Found ${items.length} items in folder ${currentFolderId}`);
 
         for (const item of items) {
           if (item.mimeType === 'application/vnd.google-apps.folder') {
-            foldersToProcess.push(item.id);
+            foldersToProcess.push({ id: item.id, name: item.name });
           } else {
-            allFiles.push(item);
+            // Attach folder information to the file
+            allFiles.push({
+              ...item,
+              parentFolderName: currentFolder.id === rootFolderId ? null : currentFolder.name
+            });
           }
         }
         pageToken = data.nextPageToken;
       } while (pageToken);
     }
-    console.log('Recursive fetch completed. Total files found:', allFiles.length);
     return allFiles;
   } catch (error: any) {
     console.error('Error in fetchAllFilesRecursively:', error);
@@ -1196,7 +1199,6 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         throw new Error('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
       }
 
-      setUploadStatus('uploading');
       setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
 
       // 1. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
@@ -1207,7 +1209,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       // 2. Get or create Year folder (e.g., "2026")
       const yearFolderId = await getOrCreateFolder(newDoc.year, activityFolderId, googleAccessToken);
 
-      // 3. Get or create Month folder (if not Pengadaan)
+      // 3. Get or create Final folder
       let finalFolderId = yearFolderId;
       if (newDoc.category === 'Pengadaan Pegawai') {
         if (newDoc.useCustomFolder && newDoc.customFolderName) {
@@ -1220,7 +1222,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       // 4. Upload to the final folder
       setSyncStatus({ message: 'Mengunggah file...', type: 'info' });
       
-      // Simulate progress for Drive upload (since fetch doesn't provide progress easily without XHR)
+      // Simulate progress for Drive upload
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
       }, 500);
@@ -1242,6 +1244,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         driveFileId,
         url: finalUrl,
         size: fileSize,
+        customFolderName: newDoc.useCustomFolder ? newDoc.customFolderName : (newDoc.category === 'Pengadaan Pegawai' ? '' : newDoc.month),
         createdAt: new Date().toISOString(),
         uploadedBy: user.uid,
         uploaderName: user.displayName
@@ -1273,18 +1276,11 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       setUploadStatus('error');
       setSyncStatus(null);
       let msg = error.message || 'Gagal mengunggah dokumen.';
-      
       if (msg.includes('Insufficient permissions') || msg.includes('403')) {
-        msg = 'Izin Ditolak: Pastikan Anda memiliki akses tulis ke folder Google Drive tujuan dan sudah memberikan izin penuh saat login.';
+        msg = 'Izin Ditolak: Pastikan Anda memiliki akses tulis ke folder Google Drive tujuan.';
       }
-      
       setErrorMessage(msg);
-      console.error('Upload Error:', msg);
-      
-      // If token is expired or invalid, clear it
-      if (error.message?.includes('invalid') || error.message?.includes('expired') || error.message?.includes('Insufficient permissions') || error.message?.includes('Sesi Google Drive telah berakhir')) {
-        setGoogleAccessToken(null);
-      }
+      if (msg.includes('Sesi Google Drive telah berakhir')) setGoogleAccessToken(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -1329,6 +1325,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
               fileName: driveFile.name,
               driveFileId: driveFile.id,
               url: driveFile.webViewLink,
+              customFolderName: driveFile.parentFolderName || '',
               createdAt: new Date().toISOString(),
               uploadedBy: user.uid,
               uploaderName: user.displayName || 'Sistem Sync'
@@ -1672,7 +1669,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 </div>
 
                 <div className="space-y-1 pt-4 border-t border-zinc-100">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Upload Berkas (Wajib)</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400 text-center block w-full">Upload Berkas (Wajib)</label>
                   <div className="relative">
                     <input 
                       type="file" 
