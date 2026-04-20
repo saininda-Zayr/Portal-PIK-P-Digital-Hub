@@ -2409,9 +2409,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   }, []);
 
   const archiveFolders = [
-    { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1_JGzCdCrP6VcnsHUPKWJZ2pfYTTy-UVa?usp=drive_link' },
-    { name: 'Informasi Kepegawaiaan', icon: FileText, url: 'https://drive.google.com/drive/folders/1qRC-sLSkUb-IjLmkb6oGW7PSs117LPIL?usp=drive_link' },
-    { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1aZU2yOdFQcePI4xQo87-EgRQXCWFU_Tt?usp=drive_link' },
+    { name: 'Arsip Digital (Pusat)', icon: ShieldCheck, url: 'https://drive.google.com/drive/folders/1CnG1puuC1kv_gw_t-NyX3aP2hKbnOHR2?usp=drive_link' },
   ];
 
   const archiveTypes = [
@@ -2630,45 +2628,26 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     }
   };
 
-  const handleCleanupArchives = async () => {
-    if (!googleAccessToken) {
-      setSyncStatus({ message: 'Silakan hubungkan ke Google Drive terlebih dahulu.', type: 'error' });
-      return;
-    }
-
+  const handleResetArchives = async () => {
+    if (!confirm('PERINGATAN: Ini akan menghapus SELURUH metadata arsip dari database aplikasi (bukan file di Drive). Gunakan ini jika Anda telah mengganti link folder dan ingin memulai dari nol. Lanjutkan?')) return;
+    
     setIsSyncing(true);
-    setSyncStatus({ message: 'Memulai pembersihan data folder arsip...', type: 'info' });
+    setSyncStatus({ message: 'Membersihkan seluruh database arsip...', type: 'info' });
     let deletedCount = 0;
 
     try {
-      // 1. Get all folder IDs in the sync scope
-      let allFolderIds: string[] = [];
-      for (const cat of archiveFolders) {
-        const folderId = getFolderId(cat.url);
-        if (folderId) {
-          const ids = await fetchAllFolderIdsRecursively(folderId, googleAccessToken);
-          allFolderIds = [...allFolderIds, ...ids];
-        }
-      }
-      
-      const folderIdSet = new Set(allFolderIds);
-      
-      // 2. Check each archive in Firestore
+      // In a real environment, we would batch delete. 
+      // For simplicity here, we iterate.
       for (const archiveItem of archives) {
-        if (archiveItem.driveFileId && folderIdSet.has(archiveItem.driveFileId)) {
-          await deleteDoc(doc(db, 'archives', archiveItem.id));
-          deletedCount++;
-        }
+        await deleteDoc(doc(db, 'archives', archiveItem.id));
+        deletedCount++;
       }
       
-      setSyncStatus({ message: `Pembersihan selesai! ${deletedCount} data folder arsip berhasil dihapus dari database.`, type: 'success' });
+      setSyncStatus({ message: `Database berhasil dikosongkan. ${deletedCount} data dihapus. Silakan sinkronkan ulang dengan folder baru.`, type: 'success' });
       setTimeout(() => setSyncStatus(null), 5000);
     } catch (error: any) {
-      console.error('Cleanup Error:', error);
-      if (error.message.includes('Sesi Google Drive telah berakhir')) {
-        setGoogleAccessToken(null);
-      }
-      setSyncStatus({ message: 'Terjadi kesalahan saat pembersihan: ' + error.message, type: 'error' });
+      console.error('Reset Error:', error);
+      setSyncStatus({ message: 'Terjadi kesalahan saat mengosongkan database: ' + error.message, type: 'error' });
     } finally {
       setIsSyncing(false);
     }
@@ -2705,9 +2684,9 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           {isAuthorized && (
             <div className="flex items-center gap-3">
               <button 
-                onClick={handleCleanupArchives}
+                onClick={handleResetArchives}
                 disabled={isSyncing}
-                title="Bersihkan data folder yang terlanjur tersinkron"
+                title="Kosongkan database untuk ganti link"
                 className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-red-100 text-red-500 font-bold rounded-2xl hover:bg-red-50 transition-all disabled:opacity-50"
               >
                 <Trash2 size={18} />
