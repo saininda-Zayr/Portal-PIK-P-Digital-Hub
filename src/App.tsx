@@ -201,7 +201,7 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
   console.log('Starting recursive fetch for folder:', rootFolderId);
   let allFiles: any[] = [];
   // Use objects to track metadata during traversal
-  let foldersToProcess = [{ id: rootFolderId, name: 'root' }];
+  let foldersToProcess = [{ id: rootFolderId, name: 'root', activity: null as string | null, year: null as string | null }];
   let processedFolders = new Set<string>();
 
   try {
@@ -210,7 +210,6 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
       if (!currentFolder || processedFolders.has(currentFolder.id)) continue;
       processedFolders.add(currentFolder.id);
 
-      console.log('Fetching contents for folder:', currentFolder.name);
       let pageToken: string | null = null;
 
       do {
@@ -237,11 +236,28 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
 
         for (const item of items) {
           if (item.mimeType === 'application/vnd.google-apps.folder') {
-            foldersToProcess.push({ id: item.id, name: item.name });
+            // Logic to determine if this is activity or year folder
+            let nextActivity = currentFolder.activity;
+            let nextYear = currentFolder.year;
+            
+            if (currentFolder.id === rootFolderId) {
+              nextActivity = item.name; // This is a level 1 folder (Activity)
+            } else if (currentFolder.activity && !currentFolder.year) {
+              nextYear = item.name; // This is a level 2 folder (Year)
+            }
+
+            foldersToProcess.push({ 
+              id: item.id, 
+              name: item.name, 
+              activity: nextActivity,
+              year: nextYear
+            });
           } else {
             // Attach folder information to the file
             allFiles.push({
               ...item,
+              activity: currentFolder.activity,
+              year: currentFolder.year,
               parentFolderName: currentFolder.id === rootFolderId ? null : currentFolder.name
             });
           }
@@ -1110,6 +1126,37 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
   ];
 
+  const ACTIVITY_ABBREVIATIONS: Record<string, string> = {
+    'Pengadaan Pegawai': 'PGDN',
+    'Kinerja Pegawai': 'KNJ',
+    'Informasi Kepegawaiaan': 'INFO'
+  };
+
+  const formatDateForNaming = (date: Date | string) => {
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}${month}${year}`;
+  };
+
+  const renameGoogleDriveFile = async (fileId: string, newName: string, accessToken: string) => {
+    try {
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error renaming Drive file:', error);
+      return false;
+    }
+  };
+
   const getFolderId = (url: string) => {
     const match = url.match(/folders\/([a-zA-Z0-9_-]+)/);
     return match ? match[1] : null;
@@ -1184,12 +1231,15 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     try {
       console.log('Memulai proses upload ke Google Drive untuk:', file.name);
       const fileExtension = file.name.split('.').pop();
-      const sanitizedDesc = newDoc.name.replace(/[^a-z0-9]/gi, '-').toUpperCase();
+      const rawName = newDoc.name || file.name.split('.')[0];
       const today = new Date().toISOString().split('T')[0];
-      let customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${today}.${fileExtension}`;
+      const dateSuffix = formatDateForNaming(today);
+      const abrv = (ACTIVITY_ABBREVIATIONS[newDoc.category] || 'DOC').toLowerCase();
+      
+      let customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${dateSuffix}.${fileExtension}`;
       
       if (newDoc.category === 'Informasi Kepegawaiaan') {
-        customFileName = `${newDoc.year}_${newDoc.activityCode}_${sanitizedDesc}_${newDoc.jenisAsn}_${today}.${fileExtension}`;
+        customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${newDoc.jenisAsn}_${dateSuffix}.${fileExtension}`;
       }
 
       const categoryObj = categories.find(c => c.name === newDoc.category);
@@ -1307,22 +1357,38 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         const driveFiles = await fetchAllFilesRecursively(folderId, googleAccessToken!);
 
         for (const driveFile of driveFiles) {
+          const activityCode = driveFile.activity ? driveFile.activity.split('_')[0] : '01';
+          const year = (driveFile.year && /^\d{4}$/.test(driveFile.year)) ? driveFile.year : new Date(driveFile.createdTime).getFullYear().toString();
+          const abrv = (ACTIVITY_ABBREVIATIONS[cat.name] || 'DOC').toLowerCase();
+          const dateSuff = formatDateForNaming(driveFile.createdTime);
+          const extension = driveFile.name.split('.').pop();
+          
+          // Construct expected name (without extension for comparison)
+          const expectedPrefix = `${year}_${abrv}_${activityCode}_`;
+          const isFormatted = driveFile.name.startsWith(expectedPrefix) && driveFile.name.includes(`_${dateSuff}.${extension}`);
+          
+          let finalDriveName = driveFile.name;
+          if (!isFormatted) {
+            // Rename file in Drive
+            const rawName = driveFile.name.split('.')[0];
+            finalDriveName = `${year}_${abrv}_${activityCode}_${rawName}_${dateSuff}.${extension}`;
+            console.log(`Renaming Drive file: ${driveFile.name} -> ${finalDriveName}`);
+            await renameGoogleDriveFile(driveFile.id, finalDriveName, googleAccessToken!);
+          }
+
           const exists = documents.some(doc => doc.driveFileId === driveFile.id);
           
           if (!exists) {
-            const parts = driveFile.name.split('_');
-            const year = parts[0] && /^\d{4}$/.test(parts[0]) ? parts[0] : new Date(driveFile.createdTime).getFullYear().toString();
-            const activityCode = parts[1] || '01';
-            const name = parts[2] ? parts[2].replace(/-/g, ' ').toUpperCase() : driveFile.name.split('.')[0].toUpperCase();
+            const name = finalDriveName.split('_').slice(3, -1).join(' ') || finalDriveName.split('.')[0];
 
             await addDoc(collection(db, 'documents'), {
-              name: name,
+              name: name.toUpperCase(),
               category: cat.name,
               activityCode: activityCode,
               year: year,
               updateDate: new Date(driveFile.createdTime).toISOString().split('T')[0],
               size: driveFile.size ? (parseInt(driveFile.size) / (1024 * 1024)).toFixed(2) + ' MB' : '0 MB',
-              fileName: driveFile.name,
+              fileName: finalDriveName,
               driveFileId: driveFile.id,
               url: driveFile.webViewLink,
               customFolderName: driveFile.parentFolderName || '',
@@ -1331,6 +1397,15 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
               uploaderName: user.displayName || 'Sistem Sync'
             });
             addedCount++;
+          } else {
+            // If already exists but name changed, update Firestore
+            const existingDoc = documents.find(doc => doc.driveFileId === driveFile.id);
+            if (existingDoc && existingDoc.fileName !== finalDriveName) {
+              await updateDoc(doc(db, 'documents', existingDoc.id), {
+                fileName: finalDriveName,
+                name: finalDriveName.split('_').slice(3, -1).join(' ').toUpperCase() || existingDoc.name
+              });
+            }
           }
         }
       }
