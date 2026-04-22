@@ -286,7 +286,8 @@ const getOrCreateFolder = async (folderName: string, parentId: string, accessTok
   });
   
   if (!response.ok) {
-    throw new Error(`Gagal mencari folder: ${folderName}`);
+    const errText = await response.text();
+    throw new Error(`Gagal mencari folder "${folderName}" (HTTP ${response.status}): ${errText}`);
   }
   
   const data = await response.json();
@@ -295,7 +296,7 @@ const getOrCreateFolder = async (folderName: string, parentId: string, accessTok
     return data.files[0].id;
   }
   
-  console.log(`Folder not found, creating: ${folderName}`);
+  console.log(`Folder not found, creating: ${folderName} inside ${parentId}`);
   // Create new folder if not found
   const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
@@ -311,8 +312,9 @@ const getOrCreateFolder = async (folderName: string, parentId: string, accessTok
   });
   
   if (!createResponse.ok) {
-    const err = await createResponse.json();
-    throw new Error(`Gagal membuat folder: ${folderName} - ${err.error?.message || ''}`);
+    const errData = await createResponse.json();
+    const errMsg = errData.error?.message || 'Unknown error';
+    throw new Error(`Google Drive Error (HTTP ${createResponse.status}): ${errMsg}. Pastikan folder induk dengan ID ${parentId} masih ada dan akun Anda memiliki akses Editor.`);
   }
   
   const createData = await createResponse.json();
@@ -1764,6 +1766,22 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     />
                     <label 
                       htmlFor="file-upload"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const droppedFile = e.dataTransfer.files?.[0] || null;
+                        if (droppedFile) {
+                          setFile(droppedFile);
+                          if (!newDoc.name) {
+                            const nameWithoutExt = droppedFile.name.split('.').slice(0, -1).join('.');
+                            setNewDoc(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
+                          }
+                        }
+                      }}
                       className={cn(
                         "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
                         file ? "border-yellow-400 bg-yellow-50" : "border-zinc-200 hover:border-yellow-400 hover:bg-zinc-50"
@@ -3014,6 +3032,22 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                     />
                     <label 
                       htmlFor="archive-upload"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const droppedFile = e.dataTransfer.files?.[0] || null;
+                        if (droppedFile) {
+                          setFile(droppedFile);
+                          if (!newArchive.name) {
+                            const nameWithoutExt = droppedFile.name.split('.').slice(0, -1).join('.');
+                            setNewArchive(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
+                          }
+                        }
+                      }}
                       className={cn(
                         "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
                         file ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50"
