@@ -1762,7 +1762,6 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       }}
                       className="hidden"
                       id="file-upload"
-                      required
                     />
                     <label 
                       htmlFor="file-upload"
@@ -3028,7 +3027,6 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       onChange={e => setFile(e.target.files?.[0] || null)}
                       className="hidden"
                       id="archive-upload"
-                      required
                     />
                     <label 
                       htmlFor="archive-upload"
