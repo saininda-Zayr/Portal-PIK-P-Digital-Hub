@@ -731,7 +731,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
           <div className="bg-black/[0.03] p-4 rounded-[2rem] border border-black/5 flex items-center gap-3 transition-all hover:bg-black/[0.06] group/profile">
             <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center p-1 shrink-0 overflow-hidden relative border border-black/5">
               <img 
-                src="/logo-polman.png" 
+                src="/Lambang_Kabupaten_Polewali_Mandar.png" 
                 alt="Logo Polman" 
                 className="w-full h-full object-contain relative z-10 brightness-[0.95] contrast-[1.05]"
                 referrerPolicy="no-referrer"
