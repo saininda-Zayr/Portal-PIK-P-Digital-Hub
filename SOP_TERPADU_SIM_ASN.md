@@ -40,14 +40,22 @@ Digunakan jika terdapat file yang diunggah secara kolektif langsung ke folder Go
 
 ---
 
-### 5. MONITORING DAN EVALUASI
+### 5. PUSAT TUTORIAL (VIDEO PANDUAN)
+Untuk membantu pemahaman visual, sistem menyediakan menu **Tutorial**:
+1. **Akses**: Klik menu **"Tutorial"** pada sidebar kiri.
+2. **Pilih Video**: Klik pada kartu video panduan yang ingin dipelajari (misal: *Panduan Pengunggahan Dokumen*).
+3. **Pemutar Video**: Video akan diputar dalam mode layar penuh (overlay). Tekan tombol silang (X) di pojok kanan atas untuk menutup video.
+
+---
+
+### 6. MONITORING DAN EVALUASI
 1. **Verifikasi Mingguan**: Kepala Bidang/Ketua Tim memantau Dashboard SIM-ASN setiap hari Jum'at untuk memastikan seluruh output pekerjaan minggu tersebut telah terunggah.
 2. **Penilaian Kinerja**: Kedisiplinan dalam pengelolaan data digital menjadi poin penilaian dalam evaluasi perilaku kerja pegawai.
 3. **Audit Folder**: Pengecekan berkala pada folder lokal komputer kantor untuk memastikan tidak ada data penting yang tertinggal di penyimpanan pribadi.
 
 ---
 
-### 6. ATURAN TAMBAHAN (DO & DON'TS)
+### 7. ATURAN TAMBAHAN (DO & DON'TS)
 - **WAJIB**: Menggunakan Nama Deskripsi yang jelas agar mudah dicari melalui fitur filter.
 - **WAJIB**: Memastikan status "Selesai" muncul sebelum menutup jendela upload.
 - **DILARANG**: Menghapus atau memindahkan file/folder di Google Drive secara manual tanpa melalui sistem aplikasi.

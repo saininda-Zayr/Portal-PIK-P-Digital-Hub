@@ -34,7 +34,9 @@ import {
   Mail,
   Phone,
   Clock,
-  Filter
+  Filter,
+  Youtube,
+  PlayCircle
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -649,6 +651,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
     { id: 'datacenter', label: 'Pusat Data', icon: Database },
     { id: 'arsipdigital', label: 'Arsip Digital', icon: ShieldCheck },
     { id: 'workhub', label: 'Work Hub', icon: Calendar },
+    { id: 'tutorials', label: 'Tutorial', icon: PlayCircle },
     { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: Heart },
   ];
 
@@ -3747,6 +3750,130 @@ const BerAKHLAK = () => {
   );
 };
 
+const PusatTutorial = () => {
+  const tutorials = [
+    {
+      title: "Panduan Pengunggahan Dokumen",
+      desc: "Cara mengunggah berkas baru dengan standarisasi penamaan otomatis tahun, kode, dan deskripsi.",
+      videoId: "dQw4w9WgXcQ", // Placeholder - ganti dengan ID video aslinya
+      duration: "03:45",
+      category: "Dasar"
+    },
+    {
+      title: "Sinkronisasi Google Drive",
+      desc: "Menghubungkan aplikasi dengan folder Cloud Storage dan merapikan file secara massal.",
+      videoId: "dQw4w9WgXcQ", // Placeholder - ganti dengan ID video aslinya
+      duration: "05:20",
+      category: "Lanjutan"
+    },
+    {
+      title: "Manajemen Arsip Digital",
+      desc: "Mencari, memfilter, dan mengelola arsip statis untuk kebutuhan pelaporan.",
+      videoId: "dQw4w9WgXcQ", // Placeholder - ganti dengan ID video aslinya
+      duration: "04:10",
+      category: "Arsip"
+    },
+    {
+      title: "Pemanfaatan Work Hub",
+      desc: "Menggunakan papan pengumuman dan manajemen tugas tim di Bidang PIK-P.",
+      videoId: "dQw4w9WgXcQ", // Placeholder - ganti dengan ID video aslinya
+      duration: "06:15",
+      category: "Kolaborasi"
+    }
+  ];
+
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tight uppercase">Pusat Tutorial</h1>
+          <p className="text-zinc-500 mt-2">Pelajari cara mengoptimalkan penggunaan portal SIM-ASN melalui panduan video.</p>
+        </div>
+        <div className="bg-yellow-400/10 px-4 py-2 rounded-2xl border border-yellow-400/20 flex items-center gap-2">
+          <Youtube className="text-yellow-600" size={20} />
+          <span className="text-yellow-700 font-bold text-sm">{tutorials.length} Video Panduan</span>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {tutorials.map((t, i) => (
+          <motion.div 
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="group bg-white rounded-[2.5rem] border border-black/5 overflow-hidden hover:shadow-2xl hover:shadow-black/5 transition-all"
+          >
+            <div 
+              className="aspect-video bg-zinc-100 relative overflow-hidden cursor-pointer"
+              onClick={() => setSelectedVideo(t.videoId)}
+            >
+               {/* Video Thumbnail Placeholder */}
+               <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/[0.03] group-hover:bg-zinc-900/[0.08] transition-colors">
+                  <PlayCircle size={64} className="text-yellow-400 group-hover:scale-110 transition-transform shadow-2xl" />
+               </div>
+               <div className="absolute bottom-4 right-4 bg-black/80 text-white text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">
+                 {t.duration}
+               </div>
+               <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md text-black text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-black/5">
+                 {t.category}
+               </div>
+            </div>
+            <div className="p-8">
+              <h3 className="text-2xl font-black mb-3 group-hover:text-yellow-600 transition-colors uppercase tracking-tight">{t.title}</h3>
+              <p className="text-zinc-500 text-sm leading-relaxed mb-6">{t.desc}</p>
+              <button 
+                onClick={() => setSelectedVideo(t.videoId)}
+                className="flex items-center gap-2 font-black text-xs uppercase tracking-[0.1em] text-black hover:text-yellow-600 transition-colors"
+              >
+                Putar Sekarang <ChevronRight size={16} />
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {selectedVideo && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 lg:p-12"
+            onClick={() => setSelectedVideo(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-5xl aspect-video bg-black rounded-[3rem] overflow-hidden shadow-2xl border border-white/10 relative"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setSelectedVideo(null)}
+                className="absolute top-6 right-6 z-10 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md transition-all"
+              >
+                <X size={24} />
+              </button>
+              <iframe 
+                width="100%" 
+                height="100%" 
+                src={`https://www.youtube.com/embed/${selectedVideo}?autoplay=1`}
+                title="YouTube video player" 
+                frameBorder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                allowFullScreen
+              ></iframe>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const UnauthorizedPage = ({ onLogout }: { onLogout: () => void }) => {
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4 font-sans">
@@ -3990,6 +4117,7 @@ export default function App() {
       case 'arsipdigital': return <ArsipDigital user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
       case 'requests': return <RequestManagement />;
       case 'workhub': return <WorkHub isAdmin={userData?.role === 'admin'} />;
+      case 'tutorials': return <PusatTutorial />;
       case 'berakhlak': return <BerAKHLAK />;
       case 'usermanagement': return <UserManagement />;
       default: return <Dashboard user={user} />;
