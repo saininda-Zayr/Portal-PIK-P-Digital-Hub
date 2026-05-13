@@ -1,68 +1,171 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // helpers
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Global Helpers
+    // ===============================================================
     function isSignedIn() { return request.auth != null; }
     
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == "saininda@gmail.com" ||
-        request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2" ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
-      );
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
     }
     
-    function isAuthorized() {
-      return isAdmin() || (
-        isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "authorized"
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == "saininda@gmail.com") ||
+        (request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
-    // Default Deny
-    match /{document=**} {
-      allow read, write: if isAdmin();
+    function isAuthorized() {
+      // Direct pass for admins to avoid get() loops/scaling issues in rules
+      // For others, check their document status
+      return isSignedIn() && (
+        (request.auth.token.email == "saininda@gmail.com") ||
+        (request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'authorized'))
+      );
     }
 
-    // Collection specific rules
+    // ===============================================================
+    // Collection match blocks
+    // ===============================================================
+
+    // --- Users ---
+    function isValidUser(data) {
+      let requiredFields = ['displayName', 'email', 'lastLogin', 'role', 'status', 'createdAt', 'updatedAt'];
+      return data.keys().hasAll(requiredFields) &&
+             data.displayName is string && data.displayName.size() <= 200 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.role in ['admin', 'staff'] &&
+             data.status in ['authorized', 'pending'] &&
+             (data.createdAt is string || data.createdAt is timestamp) &&
+             (data.updatedAt is string || data.updatedAt is timestamp) &&
+             // Ensure size is correct (7 required + optional photoURL)
+             (data.keys().size() >= 7 && data.keys().size() <= 10); 
+    }
+
     match /users/{userId} {
-      allow get, create, update: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (request.auth.token.email == "saininda@gmail.com" || request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2" || isAuthorized()); 
+      
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && 
+                       isValidUser(incoming()) &&
+                       ((request.auth.token.email == "saininda@gmail.com" || request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ? 
+                        incoming().role == 'admin' && incoming().status == 'authorized' : 
+                        incoming().role == 'staff' && incoming().status == 'pending') &&
+                       incoming().createdAt == request.time &&
+                       incoming().updatedAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(userId) && (
+        // Admin or Self
+        (isAdmin() && isValidUser(incoming()) && incoming().createdAt == existing().createdAt) ||
+        (request.auth.uid == userId && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastLogin', 'updatedAt']) &&
+         incoming().displayName is string && incoming().displayName.size() <= 200 &&
+         incoming().updatedAt == request.time &&
+         incoming().email == existing().email &&
+         incoming().role == existing().role &&
+         incoming().status == existing().status)
+      );
+      
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // --- Stats ---
+    function isValidStat(data) {
+      return data.keys().hasAll(['label', 'value', 'icon', 'color', 'order']) &&
+             data.label is string && data.label.size() <= 100 &&
+             data.value is string && data.value.size() <= 100;
+    }
+
+    match /stats/{statId} {
+      allow list, get: if isAuthorized();
+      allow create, update: if isAdmin() && isValidStat(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // --- Requests ---
+    function isValidRequest(data) {
+      return data.keys().hasAll(['requesterName', 'unit', 'dataType', 'reason', 'status', 'createdAt']) &&
+             data.requesterName is string && data.requesterName.size() <= 500 &&
+             data.status in ['pending', 'processing', 'completed'];
+    }
+
+    match /requests/{requestId} {
       allow list: if isAuthorized();
+      allow get: if isValidId(requestId) && (isAuthorized() || (isSignedIn() && existing().uid == request.auth.uid));
+      
+      allow create: if isValidId(requestId) && isValidRequest(incoming());
+      
+      allow update: if isAuthorized() && isValidId(requestId) && isValidRequest(incoming());
+      allow delete: if isAdmin() && isValidId(requestId);
     }
 
-    match /stats/{id} {
-      allow read: if isAuthorized();
+    // --- Documents ---
+    function isValidDocument(data) {
+      return data.keys().hasAll(['name', 'category', 'createdAt']) &&
+             data.name is string && data.name.size() <= 1000 &&
+             data.category is string && data.category.size() <= 200;
     }
 
-    match /requests/{id} {
-      allow create: if isSignedIn();
-      allow list: if isAuthorized();
-      allow get: if isAuthorized() || (isSignedIn() && exists(/databases/$(database)/documents/requests/$(id)) && get(/databases/$(database)/documents/requests/$(id)).data.uid == request.auth.uid);
+    match /documents/{docId} {
+      allow list, get: if isAuthorized();
+      allow create: if isAuthorized() && isValidDocument(incoming()) && 
+                       incoming().uploadedBy == request.auth.uid;
+      allow update: if (isAdmin() || (isAuthorized() && existing().uploadedBy == request.auth.uid)) && 
+                       isValidDocument(incoming()) &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin();
     }
 
-    match /documents/{id} {
-      allow read: if isAuthorized();
-      allow create, update: if isAuthorized();
+    // --- Archives ---
+    function isValidArchive(data) {
+      return data.keys().hasAll(['name', 'category', 'createdAt']) &&
+             data.name is string && data.name.size() <= 1000;
     }
 
-    match /archives/{id} {
-      allow read: if isAuthorized();
-      allow create, update: if isAuthorized();
+    match /archives/{archiveId} {
+      allow list, get: if isAuthorized();
+      allow create: if isAuthorized() && isValidArchive(incoming());
+      allow update: if isAdmin() && isValidArchive(incoming());
+      allow delete: if isAdmin();
     }
 
-    match /tasks/{id} {
-      allow read: if isAuthorized();
-      allow create, update: if isAuthorized();
+    // --- Tasks ---
+    function isValidTask(data) {
+      return data.keys().hasAll(['status', 'priority', 'createdAt']) &&
+             (data.task is string || data.title is string);
     }
 
-    match /events/{id} {
-      allow read: if isAuthorized();
+    match /tasks/{taskId} {
+      allow list, get: if isAuthorized();
+      allow create, update: if isAuthorized() && isValidTask(incoming());
+      allow delete: if isAdmin();
     }
 
-    match /announcements/{id} {
-      allow read: if isAuthorized();
+    // --- Events ---
+    match /events/{eventId} {
+      allow list, get: if isAuthorized();
+      allow write: if isAdmin();
+    }
+
+    // --- Announcements ---
+    match /announcements/{announcementId} {
+      allow list, get: if isAuthorized();
+      allow write: if isAdmin();
     }
   }
 }

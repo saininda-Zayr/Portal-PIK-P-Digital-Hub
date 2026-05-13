@@ -191,7 +191,7 @@ const handleFirestoreError = (error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  // In a real app, we might show a toast here
+  throw new Error(JSON.stringify(errInfo));
 };
 
 const MONTHS = [
@@ -773,15 +773,15 @@ const Dashboard = ({ user }: { user: any }) => {
   const isAdmin = user?.email === 'saininda@gmail.com';
 
   useEffect(() => {
+    if (!user) return;
+
     // Listen to static stats
     const qStats = query(collection(db, 'stats'), orderBy('order', 'asc'));
     const unsubscribeStats = onSnapshot(qStats, (snapshot) => {
       setStats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'stats');
-      }
+      console.warn("Stats listener error:", error.message);
     });
 
     // Listen to real requests
@@ -795,15 +795,14 @@ const Dashboard = ({ user }: { user: any }) => {
         name: month,
         data: 0, // Will be filled by documents
         requests: requests.filter(r => {
+          if (!r.createdAt) return false;
           const date = new Date(r.createdAt);
           return date.toLocaleString('default', { month: 'short' }) === month;
         }).length
       }));
       setChartData(prev => monthlyData.map((m, i) => ({ ...m, data: prev[i]?.data || 0 })));
     }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'requests');
-      }
+      console.warn("Requests listener error:", error.message);
     });
 
     // Listen to real documents
@@ -817,6 +816,7 @@ const Dashboard = ({ user }: { user: any }) => {
         ...prev[i],
         name: month,
         data: docs.filter(d => {
+          if (!d.createdAt) return false;
           const date = new Date(d.createdAt);
           return date.toLocaleString('default', { month: 'short' }) === month;
         }).length
@@ -825,7 +825,9 @@ const Dashboard = ({ user }: { user: any }) => {
       // Calculate pie data
       const categories: any = {};
       docs.forEach(d => {
-        categories[d.category] = (categories[d.category] || 0) + 1;
+        if (d.category) {
+          categories[d.category] = (categories[d.category] || 0) + 1;
+        }
       });
       const newPieData = Object.keys(categories).map(cat => ({
         name: cat,
@@ -835,27 +837,21 @@ const Dashboard = ({ user }: { user: any }) => {
         { name: 'Belum Ada Data', value: 1 }
       ]);
     }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'documents');
-      }
+      console.warn("Documents listener error:", error.message);
     });
 
     // Listen to real staff count
     const unsubscribeStaff = onSnapshot(collection(db, 'users'), (snapshot) => {
       setStaffCount(snapshot.size);
     }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'users');
-      }
+      console.warn("Users listener error:", error.message);
     });
 
     // Listen to real archives count
     const unsubscribeArchives = onSnapshot(collection(db, 'archives'), (snapshot) => {
       setArchiveCount(snapshot.size);
     }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'archives');
-      }
+      console.warn("Archives listener error:", error.message);
     });
 
     // Listen to real tasks for efficiency calculation
@@ -865,9 +861,7 @@ const Dashboard = ({ user }: { user: any }) => {
       const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
       setEfficiency(`${percentage}%`);
     }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'tasks');
-      }
+      console.warn("Tasks listener error:", error.message);
     });
 
     return () => {
@@ -878,7 +872,7 @@ const Dashboard = ({ user }: { user: any }) => {
       unsubscribeArchives();
       unsubscribeTasks();
     };
-  }, []);
+  }, [user?.uid]);
 
   const seedStats = async () => {
     const initialStats = [
@@ -4174,88 +4168,109 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Set persistence to SESSION (cleared when tab/window is closed)
-    setPersistence(auth, browserSessionPersistence)
-      .catch((error) => console.error("Error setting persistence:", error));
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Cleanup previous listener before starting a new one
-        if (userSnapshotUnsubscribe.current) {
-          userSnapshotUnsubscribe.current();
-          userSnapshotUnsubscribe.current = null;
-        }
-
-        const userRef = doc(db, 'users', user.uid);
-        const isAdminUser = user.email === 'saininda@gmail.com' || user.uid === 'lUGYop8JDvcT2SJxjiEzBC8PD2p2';
-        
-        try {
-          // Check for existing data first
-          const userDoc = await getDoc(userRef);
-          const existingData = userDoc.exists() ? userDoc.data() : null;
-
-          const profileData = {
-            displayName: user.displayName || 'User',
-            email: user.email,
-            photoURL: user.photoURL,
-            lastLogin: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            role: existingData?.role || (isAdminUser ? 'admin' : 'staff'),
-            status: existingData?.status || (isAdminUser ? 'authorized' : 'pending'),
-            createdAt: existingData?.createdAt || new Date().toISOString(), 
-          };
-
-          await setDoc(userRef, profileData, { merge: true });
-
-          // Clean up any existing listener to prevent state ID assertions
-          if (userSnapshotUnsubscribe.current) {
-            userSnapshotUnsubscribe.current();
-            userSnapshotUnsubscribe.current = null;
-          }
-
-          // Start a fresh listener
-          userSnapshotUnsubscribe.current = onSnapshot(userRef, (snapshot) => {
-            if (snapshot.exists()) {
-              setUserData(snapshot.data());
-            }
-            setAuthReady(true);
-          }, (error) => {
-            if (auth.currentUser) {
-              handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
-            }
-            setAuthReady(true);
-          });
-        } catch (error) {
-          console.error("Initialization error:", error);
-          setAuthReady(true);
-        }
-      } else {
-        if (userSnapshotUnsubscribe.current) {
-          userSnapshotUnsubscribe.current();
-          userSnapshotUnsubscribe.current = null;
-        }
+    // 1. Initial Auth Listener
+    const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (!u) {
         setUserData(null);
         setAuthReady(true);
       }
-      setUser(user);
     });
 
-    // Handle Network Status (Logout if offline)
+    // 2. Network Status
     const handleOffline = () => {
       alert("Koneksi internet terputus. Anda akan dialihkan ke halaman login untuk keamanan.");
       signOut(auth);
     };
-
     window.addEventListener('offline', handleOffline);
 
     return () => {
-      unsubscribe();
+      unsubscribeAuth();
       window.removeEventListener('offline', handleOffline);
       if (userSnapshotUnsubscribe.current) {
         userSnapshotUnsubscribe.current();
+        userSnapshotUnsubscribe.current = null;
       }
     };
   }, []);
+
+  // 3. User Data Listener & Profile Sync
+  useEffect(() => {
+    if (!user) return;
+
+    let isSubscribed = true;
+    const userRef = doc(db, 'users', user.uid);
+    const isAdminUser = user.email === 'saininda@gmail.com' || user.uid === 'lUGYop8JDvcT2SJxjiEzBC8PD2p2';
+
+    const syncProfile = async () => {
+      try {
+        console.log("Starting profile sync for:", user.uid);
+        const userDoc = await getDoc(userRef);
+        if (!isSubscribed) return;
+        
+        const existingData = userDoc.exists() ? userDoc.data() : null;
+        console.log("Existing user data found:", !!existingData);
+
+        const profileData = {
+          displayName: user.displayName || 'User',
+          email: user.email,
+          photoURL: user.photoURL || '',
+          lastLogin: new Date().toISOString(),
+          updatedAt: serverTimestamp(),
+          role: existingData?.role || (isAdminUser ? 'admin' : 'staff'),
+          status: existingData?.status || (isAdminUser ? 'authorized' : 'pending'),
+          createdAt: existingData?.createdAt || serverTimestamp(),
+        };
+
+        try {
+          await setDoc(userRef, profileData, { merge: true });
+          console.log("Profile data synced successfully");
+        } catch (setErr) {
+          handleFirestoreError(setErr, OperationType.WRITE, `users/${user.uid}`);
+          throw setErr;
+        }
+        
+        if (!isSubscribed) return;
+
+        // Cleanup previous listener before starting new one
+        if (userSnapshotUnsubscribe.current) {
+          userSnapshotUnsubscribe.current();
+          userSnapshotUnsubscribe.current = null;
+        }
+
+        userSnapshotUnsubscribe.current = onSnapshot(userRef, (snapshot) => {
+          if (isSubscribed && snapshot.exists()) {
+            setUserData(snapshot.data());
+          }
+          setAuthReady(true);
+        }, (err) => {
+          handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+          console.error("User snapshot error:", err.message);
+          // If we have existing cached data, use it
+          if (existingData) setUserData(existingData);
+          setAuthReady(true);
+        });
+
+      } catch (err: any) {
+        console.error("Profile sync error details:", err.message || err);
+        // Fallback for authorized admins if check fails
+        if (isAdminUser) {
+          setUserData({ status: 'authorized', role: 'admin' });
+        }
+        setAuthReady(true);
+      }
+    };
+
+    syncProfile();
+
+    return () => {
+      isSubscribed = false;
+      if (userSnapshotUnsubscribe.current) {
+        userSnapshotUnsubscribe.current();
+        userSnapshotUnsubscribe.current = null;
+      }
+    };
+  }, [user?.uid]);
 
   if (!authReady) {
     return (

@@ -1,148 +1,84 @@
 {
   "entities": {
-    "DashboardStat": {
-      "title": "DashboardStat",
-      "description": "Statistik utama untuk dashboard PIK-P",
-      "type": "object",
-      "properties": {
-        "label": { "type": "string" },
-        "value": { "type": "string" },
-        "icon": { "type": "string" },
-        "color": { "type": "string" },
-        "order": { "type": "number" },
-        "isDynamic": { "type": "boolean" },
-        "dynamicKey": { "type": "string" }
-      },
-      "required": ["label", "value", "icon", "color", "order"]
-    },
-    "DataRequest": {
-      "title": "DataRequest",
-      "description": "Permintaan data dari staf",
-      "type": "object",
-      "properties": {
-        "requesterName": { "type": "string" },
-        "unit": { "type": "string" },
-        "dataType": { "type": "string" },
-        "reason": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "processing", "completed"] },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "uid": { "type": "string" }
-      },
-      "required": ["requesterName", "unit", "dataType", "reason", "status", "createdAt", "uid"]
-    },
     "User": {
       "title": "User",
-      "description": "Informasi staf/user",
+      "description": "User profile and authorization data",
       "type": "object",
       "properties": {
         "displayName": { "type": "string" },
         "email": { "type": "string" },
         "photoURL": { "type": "string" },
         "lastLogin": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
         "role": { "type": "string", "enum": ["admin", "staff"] },
         "status": { "type": "string", "enum": ["authorized", "pending"] }
       },
-      "required": ["displayName", "email", "lastLogin", "role"]
+      "required": ["email", "role", "status"]
     },
-    "Document": {
-      "title": "Document",
-      "description": "Metadata dokumen digital",
+    "Stat": {
+      "title": "Stat",
+      "description": "Dashboard statistics",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "category": { "type": "string" },
-        "size": { "type": "string" },
-        "url": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "uploadedBy": { "type": "string" }
-      },
-      "required": ["name", "category", "createdAt"]
-    },
-    "Event": {
-      "title": "Event",
-      "description": "Kegiatan kalender",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
-        "description": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["title", "date", "createdAt"]
-    },
-    "Task": {
-      "title": "Task",
-      "description": "Tugas tim PIK-P",
-      "type": "object",
-      "properties": {
-        "task": { "type": "string" },
-        "status": { "type": "string", "enum": ["Pending", "In Progress", "Completed"] },
-        "priority": { "type": "string", "enum": ["Low", "Medium", "High"] },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["task", "status", "priority", "createdAt"]
-    },
-    "Announcement": {
-      "title": "Announcement",
-      "description": "Pengumuman papan digital",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "time": { "type": "string" },
-        "date": { "type": "string" },
+        "label": { "type": "string" },
+        "value": { "type": "string" },
+        "icon": { "type": "string" },
         "color": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["title", "time", "date", "createdAt"]
+        "order": { "type": "integer" },
+        "isDynamic": { "type": "boolean" },
+        "dynamicKey": { "type": "string" }
+      }
     },
-    "Archive": {
-      "title": "Archive",
-      "description": "Metadata arsip produk jadi",
+    "Request": {
+      "title": "Request",
+      "description": "Data request from users",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "category": { "type": "string" },
-        "archiveType": { "type": "string" },
-        "year": { "type": "string" },
-        "url": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "unit": { "type": "string" },
+        "contact": { "type": "string" },
+        "dataType": { "type": "string" },
+        "dataDescription": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processed", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" },
-        "uploadedBy": { "type": "string" }
-      },
-      "required": ["name", "category", "archiveType", "createdAt"]
+        "isPublic": { "type": "boolean" }
+      }
     }
   },
   "firestore": {
-    "/stats/{statId}": {
-      "schema": "DashboardStat",
-      "description": "Koleksi statistik dashboard"
-    },
-    "/requests/{requestId}": {
-      "schema": "DataRequest",
-      "description": "Koleksi permintaan data"
-    },
     "/users/{userId}": {
       "schema": "User",
-      "description": "Koleksi data user/staf"
+      "description": "User profiles"
+    },
+    "/stats/{statId}": {
+      "schema": "Stat",
+      "description": "Dashboard stats"
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Data requests"
     },
     "/documents/{docId}": {
-      "schema": "Document",
-      "description": "Koleksi dokumen digital"
+      "schema": { "$ref": "#/entities/Document" },
+      "description": "Uploaded documents"
     },
-    "/archives/{archiveId}": {
-      "schema": "Archive",
-      "description": "Koleksi arsip produk jadi"
-    },
-    "/events/{eventId}": {
-      "schema": "Event",
-      "description": "Koleksi kegiatan kalender"
+    "/archives/{id}": {
+      "schema": { "$ref": "#/entities/Document" },
+      "description": "Archived files"
     },
     "/tasks/{taskId}": {
-      "schema": "Task",
-      "description": "Koleksi tugas tim"
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Staff tasks"
     },
-    "/announcements/{announcementId}": {
-      "schema": "Announcement",
-      "description": "Koleksi pengumuman"
+    "/events/{id}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Calendar events"
+    },
+    "/announcements/{id}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "News and updates"
     }
   }
 }
