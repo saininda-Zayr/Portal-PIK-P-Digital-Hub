@@ -36,7 +36,9 @@ import {
   Clock,
   Filter,
   Youtube,
-  PlayCircle
+  PlayCircle,
+  ArrowRightCircle,
+  Smartphone
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -63,6 +65,7 @@ import {
   doc, 
   setDoc, 
   getDocs,
+  getDoc,
   getDocFromServer,
   addDoc,
   deleteDoc,
@@ -651,6 +654,8 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
     { id: 'datacenter', label: 'Pusat Data', icon: Database },
     { id: 'arsipdigital', label: 'Arsip Digital', icon: ShieldCheck },
     { id: 'workhub', label: 'Work Hub', icon: Calendar },
+    { id: 'infografis', label: 'Alur Kerja', icon: Info },
+    { id: 'panduancepat', label: 'Panduan Cepat', icon: Smartphone },
     { id: 'tutorials', label: 'Tutorial', icon: PlayCircle },
     { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: Heart },
   ];
@@ -3750,6 +3755,163 @@ const BerAKHLAK = () => {
   );
 };
 
+const PanduanCepat = () => {
+  return (
+    <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in zoom-in duration-500">
+      <div className="bg-yellow-400 rounded-[3rem] p-12 text-black shadow-2xl shadow-yellow-400/20 relative overflow-hidden">
+        <div className="absolute -top-20 -right-20 w-80 h-80 bg-black/5 rounded-full blur-3xl"></div>
+        <div className="relative z-10 flex flex-col items-center text-center">
+          <div className="w-20 h-20 bg-black text-white rounded-3xl flex items-center justify-center mb-6 shadow-xl">
+             <Smartphone size={40} />
+          </div>
+          <h1 className="text-5xl font-black tracking-tighter uppercase mb-4">SIM-ASN PORTAL</h1>
+          <p className="text-xl font-bold opacity-80 uppercase tracking-widest">Digitalisasi Administrasi Bidang PIK-P</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { title: "AKSES MUDAH", icon: Smartphone, desc: "Buka portal melalui browser Laptop atau Tablet Anda kapanpun." },
+          { title: "INPUT CERDAS", icon: Database, desc: "Sistem menamai file secara otomatis sesuai standar kepegawaian." },
+          { title: "AMAN & RAPI", icon: ShieldCheck, desc: "Terintegrasi Cloud Storage Google Drive tanpa risiko data hilang." }
+        ].map((item, i) => (
+          <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-black/5 shadow-xl shadow-black/[0.02]">
+            <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center mb-6 text-black">
+              <item.icon size={24} />
+            </div>
+            <h3 className="text-lg font-black uppercase mb-3">{item.title}</h3>
+            <p className="text-zinc-500 text-sm leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-zinc-900 rounded-[3rem] p-12 text-white">
+        <h2 className="text-3xl font-black mb-8 text-center uppercase tracking-tight italic">"Stop Silo Data, Mulai Berkolaborasi!"</h2>
+        <div className="space-y-6 max-w-xl mx-auto">
+          {[
+            "Gunakan Deskripsi yang Jelas & Informatif.",
+            "Pastikan Dokumen dalam Format Final.",
+            "Lakukan Sinkronisasi Berkala untuk File Lama.",
+            "Hubungi Operator jika Mengalami Kendala Akses."
+          ].map((text, i) => (
+            <div key={i} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+              <div className="w-8 h-8 bg-yellow-400 text-black rounded-lg flex items-center justify-center font-black flex-shrink-0">
+                {i + 1}
+              </div>
+              <p className="font-bold text-sm tracking-wide">{text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <footer className="text-center text-zinc-400 text-xs font-bold uppercase tracking-[0.2em] pb-12">
+        Bidang Pengembangan Informasi Kepegawaian & Pembinaan Aparatur <br/> Kabupaten Polewali Mandar © 2026
+      </footer>
+    </div>
+  );
+};
+
+const InfografisAlur = () => {
+  const steps = [
+    {
+      title: "Identifikasi & Finalisasi",
+      desc: "Pastikan dokumen pekerjaan sudah dalam format final (disahkan/ditandatangani).",
+      icon: ShieldCheck,
+      color: "bg-blue-50 text-blue-600",
+      stats: "01"
+    },
+    {
+      title: "Proses Input SIM-ASN",
+      desc: "Masukkan data periode dan deskripsi. Sistem akan melakukan Standarisasi Nama Otomatis.",
+      icon: Database,
+      color: "bg-yellow-50 text-yellow-600",
+      stats: "02"
+    },
+    {
+      title: "Upload & Auto-Relocate",
+      desc: "File diunggah ke Google Drive dan langsung dipindahkan ke folder kategori yang tepat.",
+      icon: Upload,
+      color: "bg-green-50 text-green-600",
+      stats: "03"
+    },
+    {
+      title: "Hapus Silo Data",
+      desc: "Data kini terpusat, transparan, dan dapat diakses oleh pimpinan maupun rekan sebidang.",
+      icon: Heart,
+      color: "bg-red-50 text-red-600",
+      stats: "04"
+    }
+  ];
+
+  return (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <header className="text-center max-w-2xl mx-auto">
+        <h1 className="text-4xl font-black text-black tracking-tight uppercase mb-4">Infografis Alur Kerja</h1>
+        <p className="text-zinc-500">Visualisasi proses digitalisasi administrasi kepegawaian di Bidang PIK-P untuk menghindari silo data.</p>
+      </header>
+
+      <div className="relative">
+        {/* Connection Line (Desktop) */}
+        <div className="hidden lg:block absolute top-[120px] left-[10%] right-[10%] h-1 bg-zinc-100 -z-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-yellow-400 to-red-400 animate-pulse"></div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 relative z-10">
+          {steps.map((step, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.2 }}
+              className="bg-white p-8 rounded-[3rem] border border-black/5 shadow-xl shadow-black/[0.02] flex flex-col items-center text-center group hover:-translate-y-2 transition-all"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center font-black text-xl mb-8 -mt-12 shadow-xl ring-8 ring-zinc-50 uppercase">
+                {step.stats}
+              </div>
+              
+              <div className={`w-20 h-20 ${step.color} rounded-[2rem] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
+                <step.icon size={32} />
+              </div>
+
+              <h3 className="text-lg font-black uppercase tracking-tight mb-4">{step.title}</h3>
+              <p className="text-zinc-500 text-sm leading-relaxed">{step.desc}</p>
+              
+              {i < steps.length - 1 && (
+                <div className="lg:hidden mt-8 text-zinc-300">
+                  <ArrowRightCircle size={32} className="rotate-90 md:rotate-0" />
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-zinc-900 text-white rounded-[3rem] p-12 text-center overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-8 opacity-10">
+          <Database size={200} />
+        </div>
+        <div className="relative z-10">
+          <h2 className="text-3xl font-black mb-4 uppercase">Hasil Akhir: Satu Data PIK-P</h2>
+          <p className="text-zinc-400 max-w-xl mx-auto mb-8">
+            Dengan mengikuti alur ini, kita menjamin keamanan dokumen dan memudahkan proses pencarian data untuk kebutuhan audit maupun pelayanan.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
+             <div className="bg-white/10 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm font-bold">
+               ✓ Terpusat di Drive
+             </div>
+             <div className="bg-white/10 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm font-bold">
+               ✓ Kolaboratif
+             </div>
+             <div className="bg-white/10 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm font-bold">
+               ✓ Penamaan Standar
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PusatTutorial = () => {
   const tutorials = [
     {
@@ -4016,62 +4178,66 @@ export default function App() {
     setPersistence(auth, browserSessionPersistence)
       .catch((error) => console.error("Error setting persistence:", error));
 
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
-        }
-      }
-    };
-    testConnection();
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Unsubscribe from any previous user data listener
+        // Cleanup previous listener before starting a new one
         if (userSnapshotUnsubscribe.current) {
           userSnapshotUnsubscribe.current();
           userSnapshotUnsubscribe.current = null;
         }
 
-        // Check if user exists in Firestore to get their role/status
         const userRef = doc(db, 'users', user.uid);
+        const isAdminUser = user.email === 'saininda@gmail.com' || user.uid === 'lUGYop8JDvcT2SJxjiEzBC8PD2p2';
         
-        // Save/Update user info
         try {
-          const isAdmin = user.email === 'saininda@gmail.com';
-          await setDoc(userRef, {
-            displayName: user.displayName,
+          // Check for existing data first
+          const userDoc = await getDoc(userRef);
+          const existingData = userDoc.exists() ? userDoc.data() : null;
+
+          const profileData = {
+            displayName: user.displayName || 'User',
             email: user.email,
             photoURL: user.photoURL,
             lastLogin: new Date().toISOString(),
-            // If it's the first time, admin is authorized, others are pending
-            ...(isAdmin ? { role: 'admin', status: 'authorized' } : {})
-          }, { merge: true });
+            updatedAt: new Date().toISOString(),
+            role: existingData?.role || (isAdminUser ? 'admin' : 'staff'),
+            status: existingData?.status || (isAdminUser ? 'authorized' : 'pending'),
+            createdAt: existingData?.createdAt || new Date().toISOString(), 
+          };
 
-          // Listen to user data for real-time status updates
-          userSnapshotUnsubscribe.current = onSnapshot(userRef, (doc) => {
-            setUserData(doc.data());
+          await setDoc(userRef, profileData, { merge: true });
+
+          // Clean up any existing listener to prevent state ID assertions
+          if (userSnapshotUnsubscribe.current) {
+            userSnapshotUnsubscribe.current();
+            userSnapshotUnsubscribe.current = null;
+          }
+
+          // Start a fresh listener
+          userSnapshotUnsubscribe.current = onSnapshot(userRef, (snapshot) => {
+            if (snapshot.exists()) {
+              setUserData(snapshot.data());
+            }
+            setAuthReady(true);
           }, (error) => {
-            // Only handle error if user is still logged in
             if (auth.currentUser) {
               handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
             }
+            setAuthReady(true);
           });
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+          console.error("Initialization error:", error);
+          setAuthReady(true);
         }
       } else {
-        // Unsubscribe from user data listener on logout
         if (userSnapshotUnsubscribe.current) {
           userSnapshotUnsubscribe.current();
           userSnapshotUnsubscribe.current = null;
         }
         setUserData(null);
+        setAuthReady(true);
       }
       setUser(user);
-      setAuthReady(true);
     });
 
     // Handle Network Status (Logout if offline)
@@ -4117,6 +4283,8 @@ export default function App() {
       case 'arsipdigital': return <ArsipDigital user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
       case 'requests': return <RequestManagement />;
       case 'workhub': return <WorkHub isAdmin={userData?.role === 'admin'} />;
+      case 'infografis': return <InfografisAlur />;
+      case 'panduancepat': return <PanduanCepat />;
       case 'tutorials': return <PusatTutorial />;
       case 'berakhlak': return <BerAKHLAK />;
       case 'usermanagement': return <UserManagement />;

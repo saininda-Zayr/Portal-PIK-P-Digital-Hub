@@ -1,89 +1,68 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
+    // helpers
+    function isSignedIn() { return request.auth != null; }
+    
     function isAdmin() {
-      return isAuthenticated() && 
-        ( (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') || 
-         (request.auth.token.email == "saininda@gmail.com" && request.auth.token.email_verified == true));
+      return isSignedIn() && (
+        request.auth.token.email == "saininda@gmail.com" ||
+        request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
     }
-
+    
     function isAuthorized() {
-      return isAuthenticated() && 
-        ( (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'authorized') || isAdmin());
+      return isAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "authorized"
+      );
     }
 
-    // ===============================================================
-    // Stats Collection
-    // ===============================================================
-    match /stats/{statId} {
-      allow read: if isAuthorized();
-      allow write: if isAdmin();
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
 
-    // ===============================================================
-    // Requests Collection
-    // ===============================================================
-    match /requests/{requestId} {
-      allow read: if isAuthorized();
-      allow create: if true; // Allow public submissions for external parties
-      allow update, delete: if isAdmin();
-    }
-
-    // ===============================================================
-    // Users Collection
-    // ===============================================================
+    // Collection specific rules
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow get, create, update: if isSignedIn() && request.auth.uid == userId;
+      allow list: if isAuthorized();
     }
 
-    // ===============================================================
-    // Documents Collection
-    // ===============================================================
-    match /documents/{docId} {
+    match /stats/{id} {
       allow read: if isAuthorized();
-      allow create: if isAuthorized();
-      allow update, delete: if isAdmin();
     }
 
-    // ===============================================================
-    // Archives Collection
-    // ===============================================================
-    match /archives/{archiveId} {
-      allow read: if isAuthorized();
-      allow create: if isAuthorized();
-      allow update, delete: if isAdmin();
+    match /requests/{id} {
+      allow create: if isSignedIn();
+      allow list: if isAuthorized();
+      allow get: if isAuthorized() || (isSignedIn() && exists(/databases/$(database)/documents/requests/$(id)) && get(/databases/$(database)/documents/requests/$(id)).data.uid == request.auth.uid);
     }
 
-    // ===============================================================
-    // Events Collection
-    // ===============================================================
-    match /events/{eventId} {
+    match /documents/{id} {
       allow read: if isAuthorized();
-      allow write: if isAdmin();
+      allow create, update: if isAuthorized();
     }
 
-    // ===============================================================
-    // Tasks Collection
-    // ===============================================================
-    match /tasks/{taskId} {
+    match /archives/{id} {
       allow read: if isAuthorized();
-      allow write: if isAuthorized(); // Staff can update task status
+      allow create, update: if isAuthorized();
     }
 
-    // ===============================================================
-    // Announcements Collection
-    // ===============================================================
-    match /announcements/{announcementId} {
+    match /tasks/{id} {
       allow read: if isAuthorized();
-      allow write: if isAdmin();
+      allow create, update: if isAuthorized();
+    }
+
+    match /events/{id} {
+      allow read: if isAuthorized();
+    }
+
+    match /announcements/{id} {
+      allow read: if isAuthorized();
     }
   }
 }
