@@ -1092,7 +1092,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -1224,7 +1224,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
   const handleAddDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
+    if (files.length === 0) {
       alert('Silakan pilih file terlebih dahulu.');
       return;
     }
@@ -1235,35 +1235,21 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     }
 
     setIsSubmitting(true);
-    setUploadStatus('uploading');
-    setUploadProgress(0);
     setErrorMessage(null);
-    
-    let finalUrl = '';
-    let fileSize = '';
-    let driveFileId = '';
+    const today = new Date().toISOString().split('T')[0];
+    const dateSuffix = formatDateForNaming(today);
+    const abrv = (ACTIVITY_ABBREVIATIONS[newDoc.category] || 'DOC').toLowerCase();
+
+    const categoryObj = categories.find(c => c.name === newDoc.category);
+    const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
+
+    if (!rootFolderId) {
+      setIsSubmitting(false);
+      alert('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
+      return;
+    }
 
     try {
-      console.log('Memulai proses upload ke Google Drive untuk:', file.name);
-      const fileExtension = file.name.split('.').pop();
-      const rawName = newDoc.name || file.name.split('.')[0];
-      const today = new Date().toISOString().split('T')[0];
-      const dateSuffix = formatDateForNaming(today);
-      const abrv = (ACTIVITY_ABBREVIATIONS[newDoc.category] || 'DOC').toLowerCase();
-      
-      let customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${dateSuffix}.${fileExtension}`;
-      
-      if (newDoc.category === 'Informasi Kepegawaiaan') {
-        customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${newDoc.jenisAsn}_${dateSuffix}.${fileExtension}`;
-      }
-
-      const categoryObj = categories.find(c => c.name === newDoc.category);
-      const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
-
-      if (!rootFolderId) {
-        throw new Error('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
-      }
-
       setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
 
       // 1. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
@@ -1284,45 +1270,61 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         finalFolderId = await getOrCreateFolder(newDoc.month, yearFolderId, googleAccessToken);
       }
 
-      // 4. Upload to the final folder
-      setSyncStatus({ message: 'Mengunggah file...', type: 'info' });
-      
-      // Simulate progress for Drive upload
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
-      }, 500);
+      for (let i = 0; i < files.length; i++) {
+        const currentFile = files[i];
+        setUploadStatus('uploading');
+        setUploadProgress(0);
+        setSyncStatus({ message: `Mengunggah file ${i + 1} dari ${files.length}: ${currentFile.name}`, type: 'info' });
 
-      const driveResult = await uploadToGoogleDrive(file, customFileName, finalFolderId, googleAccessToken);
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      finalUrl = driveResult.webViewLink;
-      driveFileId = driveResult.id;
-      fileSize = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+        const fileExtension = currentFile.name.split('.').pop();
+        // If multiple files, use original filename if user didn't provide a unique one
+        const rawName = files.length > 1 ? currentFile.name.split('.')[0] : (newDoc.name || currentFile.name.split('.')[0]);
+        
+        let customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${dateSuffix}.${fileExtension}`;
+        
+        if (newDoc.category === 'Informasi Kepegawaiaan') {
+          customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${newDoc.jenisAsn}_${dateSuffix}.${fileExtension}`;
+        }
 
-      setUploadStatus('saving');
-      await addDoc(collection(db, 'documents'), {
-        ...newDoc,
-        updateDate: today,
-        fileName: customFileName,
-        driveFileId,
-        url: finalUrl,
-        parentFolderId: finalFolderId,
-        size: fileSize,
-        customFolderName: newDoc.useCustomFolder ? newDoc.customFolderName : (newDoc.category === 'Pengadaan Pegawai' ? '' : newDoc.month),
-        createdAt: new Date().toISOString(),
-        uploadedBy: user.uid,
-        uploaderName: user.displayName
-      });
+        // Simulate progress for Drive upload
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
+        }, 300);
+
+        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, finalFolderId, googleAccessToken);
+        
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+        
+        const finalUrl = driveResult.webViewLink;
+        const driveFileId = driveResult.id;
+        const fileSize = (currentFile.size / (1024 * 1024)).toFixed(2) + ' MB';
+
+        setUploadStatus('saving');
+        await addDoc(collection(db, 'documents'), {
+          ...newDoc,
+          name: files.length > 1 ? currentFile.name.split('.')[0].toUpperCase() : newDoc.name,
+          updateDate: today,
+          fileName: customFileName,
+          driveFileId,
+          url: finalUrl,
+          parentFolderId: finalFolderId,
+          size: fileSize,
+          customFolderName: newDoc.useCustomFolder ? newDoc.customFolderName : (newDoc.category === 'Pengadaan Pegawai' ? '' : newDoc.month),
+          createdAt: new Date().toISOString(),
+          uploadedBy: user.uid,
+          uploaderName: user.displayName
+        });
+      }
       
       setUploadStatus('success');
-      setSyncStatus({ message: 'Dokumen berhasil diunggah!', type: 'success' });
+      setSyncStatus({ message: `${files.length} dokumen berhasil diunggah!`, type: 'success' });
       setTimeout(() => setSyncStatus(null), 3000);
 
       setTimeout(() => {
         setIsModalOpen(false);
         setUploadStatus('idle');
+        setFiles([]);
         setNewDoc({ 
           name: '', 
           category: viewState.category || 'Pengadaan Pegawai', 
@@ -1335,17 +1337,17 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           useCustomFolder: false,
           customFolderName: ''
         });
-        setFile(null);
         setUploadProgress(0);
       }, 1500);
     } catch (error: any) {
+      console.error('Error in handleAddDocument:', error);
       setUploadStatus('error');
-      setSyncStatus(null);
-      let msg = error.message || 'Gagal mengunggah dokumen.';
-      if (msg.includes('Insufficient permissions') || msg.includes('403')) {
+      let msg = error.message;
+      if (msg.includes('insufficient permissions')) {
         msg = 'Izin Ditolak: Pastikan Anda memiliki akses tulis ke folder Google Drive tujuan.';
       }
       setErrorMessage(msg);
+      setSyncStatus({ message: 'Gagal mengunggah: ' + msg, type: 'error' });
       if (msg.includes('Sesi Google Drive telah berakhir')) setGoogleAccessToken(null);
     } finally {
       setIsSubmitting(false);
@@ -1769,12 +1771,13 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                   <div className="relative">
                     <input 
                       type="file" 
+                      multiple
                       onChange={e => {
-                        const selectedFile = e.target.files?.[0] || null;
-                        setFile(selectedFile);
-                        if (selectedFile) {
+                        const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
+                        setFiles(selectedFiles);
+                        if (selectedFiles.length === 1) {
                           if (!newDoc.name) {
-                            const nameWithoutExt = selectedFile.name.split('.').slice(0, -1).join('.');
+                            const nameWithoutExt = selectedFiles[0].name.split('.').slice(0, -1).join('.');
                             setNewDoc(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
                           }
                         }
@@ -1791,23 +1794,25 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const droppedFile = e.dataTransfer.files?.[0] || null;
-                        if (droppedFile) {
-                          setFile(droppedFile);
-                          if (!newDoc.name) {
-                            const nameWithoutExt = droppedFile.name.split('.').slice(0, -1).join('.');
+                        const droppedFiles = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+                        if (droppedFiles.length > 0) {
+                          setFiles(droppedFiles);
+                          if (droppedFiles.length === 1 && !newDoc.name) {
+                            const nameWithoutExt = droppedFiles[0].name.split('.').slice(0, -1).join('.');
                             setNewDoc(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
                           }
                         }
                       }}
                       className={cn(
                         "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
-                        file ? "border-yellow-400 bg-yellow-50" : "border-zinc-200 hover:border-yellow-400 hover:bg-zinc-50"
+                        files.length > 0 ? "border-yellow-400 bg-yellow-50" : "border-zinc-200 hover:border-yellow-400 hover:bg-zinc-50"
                       )}
                     >
-                      <Upload className={file ? "text-yellow-600" : "text-zinc-400"} size={24} />
+                      <Upload className={files.length > 0 ? "text-yellow-600" : "text-zinc-400"} size={24} />
                       <span className="text-sm font-medium text-zinc-600 text-center">
-                        {file ? file.name : 'Klik untuk pilih file atau seret ke sini'}
+                        {files.length > 0 
+                          ? `${files.length} file dipilih: ${files.map(f => f.name).join(', ').substring(0, 50)}${files.map(f => f.name).join(', ').length > 50 ? '...' : ''}` 
+                          : 'Klik untuk pilih file (bisa banyak) atau seret ke sini'}
                       </span>
                     </label>
                   </div>
@@ -2538,7 +2543,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -2621,7 +2626,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
 
   const handleAddArchive = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
+    if (files.length === 0) {
       alert('Silakan pilih file terlebih dahulu.');
       return;
     }
@@ -2632,23 +2637,18 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     }
 
     setIsSubmitting(true);
-    setUploadStatus('uploading');
-    setUploadProgress(0);
     setErrorMessage(null);
     
     try {
-      const fileExtension = file.name.split('.').pop();
-      const sanitizedName = newArchive.name.replace(/[^a-z0-9]/gi, '-').toUpperCase();
-      const customFileName = `ARSIP_${newArchive.year}_${newArchive.archiveType.replace(/\s+/g, '_').toUpperCase()}_${sanitizedName}.${fileExtension}`;
-
       const categoryObj = archiveFolders.find(c => c.name === newArchive.category);
       const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
 
       if (!rootFolderId) {
-        throw new Error('ID Folder Google Drive tidak ditemukan.');
+        setIsSubmitting(false);
+        alert('ID Folder Google Drive tidak ditemukan.');
+        return;
       }
 
-      setUploadStatus('uploading');
       setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
 
       // 1. Get or create Month folder (e.g., "Maret 2026")
@@ -2659,38 +2659,49 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       const archiveFolderName = newArchive.archiveType.replace(/\s+/g, '_').toUpperCase();
       const finalFolderId = await getOrCreateFolder(archiveFolderName, monthFolderId, googleAccessToken);
 
-      // 3. Upload to the final folder
-      setSyncStatus({ message: 'Mengunggah file...', type: 'info' });
+      for (let i = 0; i < files.length; i++) {
+        const currentFile = files[i];
+        setUploadStatus('uploading');
+        setUploadProgress(0);
+        setSyncStatus({ message: `Mengunggah arsip ${i + 1} dari ${files.length}: ${currentFile.name}`, type: 'info' });
 
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
-      }, 500);
+        const fileExtension = currentFile.name.split('.').pop();
+        const rawName = files.length > 1 ? currentFile.name.split('.')[0] : (newArchive.name || currentFile.name.split('.')[0]);
+        const sanitizedName = rawName.replace(/[^a-z0-9]/gi, '-').toUpperCase();
+        const customFileName = `ARSIP_${newArchive.year}_${newArchive.archiveType.replace(/\s+/g, '_').toUpperCase()}_${sanitizedName}.${fileExtension}`;
 
-      const driveResult = await uploadToGoogleDrive(file, customFileName, finalFolderId, googleAccessToken);
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      setUploadStatus('saving');
-      await addDoc(collection(db, 'archives'), {
-        ...newArchive,
-        fileName: customFileName,
-        driveFileId: driveResult.id,
-        url: driveResult.webViewLink,
-        parentFolderId: finalFolderId,
-        size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        createdAt: new Date().toISOString(),
-        uploadedBy: user.uid,
-        uploaderName: user.displayName
-      });
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
+        }, 300);
+
+        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, finalFolderId, googleAccessToken);
+        
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+        
+        setUploadStatus('saving');
+        await addDoc(collection(db, 'archives'), {
+          ...newArchive,
+          name: files.length > 1 ? currentFile.name.split('.')[0].toUpperCase() : newArchive.name.toUpperCase(),
+          fileName: customFileName,
+          driveFileId: driveResult.id,
+          url: driveResult.webViewLink,
+          parentFolderId: finalFolderId,
+          size: (currentFile.size / (1024 * 1024)).toFixed(2) + ' MB',
+          createdAt: new Date().toISOString(),
+          uploadedBy: user.uid,
+          uploaderName: user.displayName
+        });
+      }
       
       setUploadStatus('success');
-      setSyncStatus({ message: 'Arsip berhasil diunggah!', type: 'success' });
+      setSyncStatus({ message: `${files.length} arsip berhasil diunggah!`, type: 'success' });
       setTimeout(() => setSyncStatus(null), 3000);
 
       setTimeout(() => {
         setIsModalOpen(false);
         setUploadStatus('idle');
+        setFiles([]);
         setNewArchive({ 
           name: '', 
           category: 'Pengadaan Pegawai', 
@@ -2700,8 +2711,8 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           updateDate: new Date().toISOString().split('T')[0],
           description: ''
         });
-        setFile(null);
         setUploadProgress(0);
+        setIsSubmitting(false);
       }, 1500);
     } catch (error: any) {
       setUploadStatus('error');
@@ -2711,7 +2722,6 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
         setGoogleAccessToken(null);
       }
       setErrorMessage(msg);
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -3098,7 +3108,17 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                   <div className="relative">
                     <input 
                       type="file" 
-                      onChange={e => setFile(e.target.files?.[0] || null)}
+                      multiple
+                      onChange={e => {
+                        const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
+                        setFiles(selectedFiles);
+                        if (selectedFiles.length === 1) {
+                          if (!newArchive.name) {
+                            const nameWithoutExt = selectedFiles[0].name.split('.').slice(0, -1).join('.');
+                            setNewArchive(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
+                          }
+                        }
+                      }}
                       className="hidden"
                       id="archive-upload"
                     />
@@ -3111,23 +3131,25 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const droppedFile = e.dataTransfer.files?.[0] || null;
-                        if (droppedFile) {
-                          setFile(droppedFile);
-                          if (!newArchive.name) {
-                            const nameWithoutExt = droppedFile.name.split('.').slice(0, -1).join('.');
+                        const droppedFiles = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+                        if (droppedFiles.length > 0) {
+                          setFiles(droppedFiles);
+                          if (droppedFiles.length === 1 && !newArchive.name) {
+                            const nameWithoutExt = droppedFiles[0].name.split('.').slice(0, -1).join('.');
                             setNewArchive(prev => ({ ...prev, name: nameWithoutExt.toUpperCase() }));
                           }
                         }
                       }}
                       className={cn(
                         "w-full p-4 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
-                        file ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50"
+                        files.length > 0 ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 hover:border-zinc-900 hover:bg-zinc-50"
                       )}
                     >
-                      <Upload className={file ? "text-zinc-900" : "text-zinc-400"} size={24} />
+                      <Upload className={files.length > 0 ? "text-zinc-900" : "text-zinc-400"} size={24} />
                       <span className="text-sm font-medium text-zinc-600 text-center">
-                        {file ? file.name : 'Klik untuk pilih file produk jadi'}
+                        {files.length > 0 
+                          ? `${files.length} file dipilih: ${files.map(f => f.name).join(', ').substring(0, 50)}${files.map(f => f.name).join(', ').length > 50 ? '...' : ''}` 
+                          : 'Klik untuk pilih file produk jadi (bisa banyak)'}
                       </span>
                     </label>
                   </div>
