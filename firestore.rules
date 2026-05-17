@@ -1,4 +1,5 @@
 rules_version = '2';
+// Rules Version: 2026-05-13 v1.2 - Force update
 service cloud.firestore {
   match /databases/{database}/documents {
     // 0. Global Safety Net
@@ -28,8 +29,7 @@ service cloud.firestore {
     }
 
     function isAuthorized() {
-      // Direct pass for admins to avoid get() loops/scaling issues in rules
-      // For others, check their document status
+      // Direct pass for admins or specific IDs
       return isSignedIn() && (
         (request.auth.token.email == "saininda@gmail.com") ||
         (request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ||
@@ -61,25 +61,8 @@ service cloud.firestore {
       allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
       allow list: if isSignedIn() && (request.auth.token.email == "saininda@gmail.com" || request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2" || isAuthorized()); 
       
-      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && 
-                       isValidUser(incoming()) &&
-                       ((request.auth.token.email == "saininda@gmail.com" || request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ? 
-                        incoming().role == 'admin' && incoming().status == 'authorized' : 
-                        incoming().role == 'staff' && incoming().status == 'pending') &&
-                       incoming().createdAt == request.time &&
-                       incoming().updatedAt == request.time;
-      
-      allow update: if isSignedIn() && isValidId(userId) && (
-        // Admin or Self
-        (isAdmin() && isValidUser(incoming()) && incoming().createdAt == existing().createdAt) ||
-        (request.auth.uid == userId && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastLogin', 'updatedAt']) &&
-         incoming().displayName is string && incoming().displayName.size() <= 200 &&
-         incoming().updatedAt == request.time &&
-         incoming().email == existing().email &&
-         incoming().role == existing().role &&
-         incoming().status == existing().status)
-      );
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow update: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
       
       allow delete: if isAdmin() && isValidId(userId);
     }

@@ -199,6 +199,11 @@ const MONTHS = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
+const monthNameFallback = (name: string) => {
+  if (!name) return '';
+  return MONTHS.find(m => m.toLowerCase() === name.toLowerCase()) || '';
+};
+
 /**
  * Helper to fetch all files recursively from a Google Drive folder
  */
@@ -1112,7 +1117,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
     const data = last6Months.map(month => ({
       name: month,
-      total: documents.filter(doc => doc.month === month).length
+      total: documents.filter(doc => doc.month === month || doc.customFolderName === month).length
     }));
     setChartData(data);
 
@@ -1382,6 +1387,9 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
           const exists = documents.some(doc => doc.driveFileId === driveFile.id);
           
+          const parentFolderName = driveFile.parentFolderName || '';
+          const matchedMonth = monthNameFallback(parentFolderName);
+
           if (!exists) {
             const name = finalDriveName.split('_').slice(3, -1).join(' ') || finalDriveName.split('.')[0];
 
@@ -1390,12 +1398,13 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
               category: cat.name,
               activityCode: activityCode,
               year: year,
+              month: matchedMonth,
               updateDate: new Date(driveFile.createdTime).toISOString().split('T')[0],
               size: driveFile.size ? (parseInt(driveFile.size) / (1024 * 1024)).toFixed(2) + ' MB' : '0 MB',
               fileName: finalDriveName,
               driveFileId: driveFile.id,
               url: driveFile.webViewLink,
-              customFolderName: driveFile.parentFolderName || '',
+              customFolderName: parentFolderName,
               createdAt: new Date().toISOString(),
               uploadedBy: user.uid,
               uploaderName: user.displayName || 'Sistem Sync'
@@ -2323,7 +2332,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       d.category === viewState.category && 
                       d.activityCode === viewState.activity && 
                       d.year === viewState.year && 
-                      (viewState.category === 'Pengadaan Pegawai' || d.month === viewState.month)
+                      (viewState.category === 'Pengadaan Pegawai' || d.month === viewState.month || d.customFolderName === viewState.month)
                     )
                     .map((file, i) => (
                       <tr key={i} className="hover:bg-zinc-50 transition-colors group">
@@ -2436,7 +2445,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-500 font-bold">
-                      {file.month ? `${file.month} ` : ''}{file.year}
+                      {file.month || monthNameFallback(file.customFolderName) ? `${file.month || monthNameFallback(file.customFolderName)} ` : ''}{file.year}
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-500">
                       {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
@@ -2687,17 +2696,20 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
             const year = parts[1] && /^\d{4}$/.test(parts[1]) ? parts[1] : new Date(driveFile.createdTime).getFullYear().toString();
             const archiveType = parts[2] ? parts[2].replace(/_/g, ' ') : 'Arsip Umum';
             const name = parts[3] ? parts[3].replace(/-/g, ' ').toUpperCase() : driveFile.name.split('.')[0].toUpperCase();
+            const matchedMonth = monthNameFallback(driveFile.parentFolderName || '');
 
             await addDoc(collection(db, 'archives'), {
               name: name,
               category: cat.name,
               archiveType: archiveType,
               year: year,
+              month: matchedMonth,
               updateDate: new Date(driveFile.createdTime).toISOString().split('T')[0],
               size: driveFile.size ? (parseInt(driveFile.size) / (1024 * 1024)).toFixed(2) + ' MB' : '0 MB',
               fileName: driveFile.name,
               driveFileId: driveFile.id,
               url: driveFile.webViewLink,
+              customFolderName: driveFile.parentFolderName || '',
               createdAt: new Date().toISOString(),
               uploadedBy: user.uid,
               uploaderName: user.displayName || 'Sistem Sync'
@@ -2987,7 +2999,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                     <td className="px-6 py-4 text-sm text-zinc-500">{archive.archiveType}</td>
                     <td className="px-6 py-4 text-sm text-zinc-500">{archive.category}</td>
                     <td className="px-6 py-4 text-sm text-zinc-500">
-                      {archive.month ? `${archive.month} ` : ''}{archive.year}
+                      {archive.month || monthNameFallback(archive.customFolderName) ? `${archive.month || monthNameFallback(archive.customFolderName)} ` : ''}{archive.year}
                     </td>
                     <td className="px-6 py-4">
                       <button 
@@ -4212,9 +4224,9 @@ export default function App() {
         console.log("Existing user data found:", !!existingData);
 
         const profileData = {
-          displayName: user.displayName || 'User',
-          email: user.email,
-          photoURL: user.photoURL || '',
+          displayName: (user.displayName || user.email || 'User').substring(0, 200),
+          email: (user.email || '').substring(0, 200),
+          photoURL: (user.photoURL || '').substring(0, 1000),
           lastLogin: new Date().toISOString(),
           updatedAt: serverTimestamp(),
           role: existingData?.role || (isAdminUser ? 'admin' : 'staff'),
@@ -4223,9 +4235,11 @@ export default function App() {
         };
 
         try {
+          console.log("Attempting setDoc for profile sync with data:", JSON.stringify(profileData, null, 2));
           await setDoc(userRef, profileData, { merge: true });
           console.log("Profile data synced successfully");
         } catch (setErr) {
+          console.error("setDoc failed during profile sync:", setErr);
           handleFirestoreError(setErr, OperationType.WRITE, `users/${user.uid}`);
           throw setErr;
         }
