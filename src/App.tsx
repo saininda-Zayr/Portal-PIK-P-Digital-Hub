@@ -1262,12 +1262,23 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
       // 3. Get or create Final folder
       let finalFolderId = yearFolderId;
+      let effectiveFolderName = '';
+
       if (newDoc.category === 'Pengadaan Pegawai') {
         if (newDoc.useCustomFolder && newDoc.customFolderName) {
           finalFolderId = await getOrCreateFolder(newDoc.customFolderName, yearFolderId, googleAccessToken);
+          effectiveFolderName = newDoc.customFolderName;
         }
       } else {
         finalFolderId = await getOrCreateFolder(newDoc.month, yearFolderId, googleAccessToken);
+        effectiveFolderName = newDoc.month;
+      }
+
+      // If multiple files, create a grouping subfolder as requested by user ("nama folder")
+      if (files.length > 1) {
+        setSyncStatus({ message: `Membuat folder kelompok: ${newDoc.name}...`, type: 'info' });
+        finalFolderId = await getOrCreateFolder(newDoc.name.toUpperCase(), finalFolderId, googleAccessToken);
+        effectiveFolderName = newDoc.name.toUpperCase();
       }
 
       for (let i = 0; i < files.length; i++) {
@@ -1277,7 +1288,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         setSyncStatus({ message: `Mengunggah file ${i + 1} dari ${files.length}: ${currentFile.name}`, type: 'info' });
 
         const fileExtension = currentFile.name.split('.').pop();
-        // If multiple files, use original filename if user didn't provide a unique one
+        // If multiple files, use original filename; if single, use user provided name or original
         const rawName = files.length > 1 ? currentFile.name.split('.')[0] : (newDoc.name || currentFile.name.split('.')[0]);
         
         let customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${dateSuffix}.${fileExtension}`;
@@ -1310,7 +1321,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           url: finalUrl,
           parentFolderId: finalFolderId,
           size: fileSize,
-          customFolderName: newDoc.useCustomFolder ? newDoc.customFolderName : (newDoc.category === 'Pengadaan Pegawai' ? '' : newDoc.month),
+          customFolderName: effectiveFolderName,
           createdAt: new Date().toISOString(),
           uploadedBy: user.uid,
           uploaderName: user.displayName
@@ -1745,14 +1756,16 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 )}
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Nama File Baru</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    {files.length > 1 ? 'Nama Folder / Nama Kelompok' : 'Nama File Baru'}
+                  </label>
                   <input 
                     required
                     type="text" 
                     value={newDoc.name}
                     onChange={e => setNewDoc({...newDoc, name: e.target.value})}
                     className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-yellow-400"
-                    placeholder="Contoh: SK KENAIKAN PANGKAT"
+                    placeholder={files.length > 1 ? "Contoh: BERKAS SELEKSI KOMPETENSI" : "Contoh: SK KENAIKAN PANGKAT"}
                   />
                 </div>
                 <div className="space-y-1">
@@ -2659,6 +2672,15 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       const archiveFolderName = newArchive.archiveType.replace(/\s+/g, '_').toUpperCase();
       const finalFolderId = await getOrCreateFolder(archiveFolderName, monthFolderId, googleAccessToken);
 
+      let uploadFolderId = finalFolderId;
+      let effectiveFolderName = '';
+
+      if (files.length > 1) {
+        setSyncStatus({ message: `Membuat folder kelompok arsip: ${newArchive.name}...`, type: 'info' });
+        uploadFolderId = await getOrCreateFolder(newArchive.name.toUpperCase(), finalFolderId, googleAccessToken);
+        effectiveFolderName = newArchive.name.toUpperCase();
+      }
+
       for (let i = 0; i < files.length; i++) {
         const currentFile = files[i];
         setUploadStatus('uploading');
@@ -2674,7 +2696,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
         }, 300);
 
-        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, finalFolderId, googleAccessToken);
+        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, uploadFolderId, googleAccessToken);
         
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -2686,7 +2708,8 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           fileName: customFileName,
           driveFileId: driveResult.id,
           url: driveResult.webViewLink,
-          parentFolderId: finalFolderId,
+          parentFolderId: uploadFolderId,
+          customFolderName: effectiveFolderName,
           size: (currentFile.size / (1024 * 1024)).toFixed(2) + ' MB',
           createdAt: new Date().toISOString(),
           uploadedBy: user.uid,
@@ -3213,14 +3236,16 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Nama Dokumen / No. Surat</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    {files.length > 1 ? 'Nama Kelompok Arsip / Folder' : 'Nama Dokumen / No. Surat'}
+                  </label>
                   <input 
                     required
                     type="text" 
                     value={newArchive.name}
                     onChange={e => setNewArchive({...newArchive, name: e.target.value})}
                     className="w-full p-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-zinc-900"
-                    placeholder="Contoh: 800/123/BKPSDM/2024"
+                    placeholder={files.length > 1 ? "Contoh: BUNDEL SK PEMBERHENTIAN 2024" : "Contoh: 800/123/BKPSDM/2024"}
                   />
                 </div>
 
