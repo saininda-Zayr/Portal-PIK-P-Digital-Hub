@@ -201,7 +201,12 @@ const MONTHS = [
 
 const monthNameFallback = (name: string) => {
   if (!name) return '';
-  return MONTHS.find(m => m.toLowerCase() === name.toLowerCase()) || '';
+  // Check for exact match first
+  const exact = MONTHS.find(m => m.toLowerCase() === name.toLowerCase());
+  if (exact) return exact;
+  // Check if name contains any month (e.g. "Maret 2026")
+  const partial = MONTHS.find(m => name.toLowerCase().includes(m.toLowerCase()));
+  return partial || '';
 };
 
 /**
@@ -268,6 +273,7 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
               ...item,
               activity: currentFolder.activity,
               year: currentFolder.year,
+              parentFolderId: currentFolder.id === rootFolderId ? null : currentFolder.id,
               parentFolderName: currentFolder.id === rootFolderId ? null : currentFolder.name
             });
           }
@@ -1302,6 +1308,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         fileName: customFileName,
         driveFileId,
         url: finalUrl,
+        parentFolderId: finalFolderId,
         size: fileSize,
         customFolderName: newDoc.useCustomFolder ? newDoc.customFolderName : (newDoc.category === 'Pengadaan Pegawai' ? '' : newDoc.month),
         createdAt: new Date().toISOString(),
@@ -1404,6 +1411,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
               fileName: finalDriveName,
               driveFileId: driveFile.id,
               url: driveFile.webViewLink,
+              parentFolderId: driveFile.parentFolderId || '',
               customFolderName: parentFolderName,
               createdAt: new Date().toISOString(),
               uploadedBy: user.uid,
@@ -2162,13 +2170,23 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                                 </td>
                                 <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                                 <td className="px-6 py-4 text-right">
-                                  <button 
-                                    onClick={() => file.url && window.open(file.url, '_blank')}
-                                    className="text-xs font-black text-yellow-600 hover:underline"
-                                    disabled={!file.url}
-                                  >
-                                    LIHAT
-                                  </button>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <button 
+                                      onClick={() => file.url && window.open(file.url, '_blank')}
+                                      className="text-xs font-black text-yellow-600 hover:underline"
+                                      disabled={!file.url}
+                                    >
+                                      LIHAT FILE
+                                    </button>
+                                    {file.parentFolderId && (
+                                      <button 
+                                        onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
+                                        className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                                      >
+                                        BUKA FOLDER
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -2263,13 +2281,23 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                         <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => file.url && window.open(file.url, '_blank')}
-                            className="text-xs font-black text-yellow-600 hover:underline"
-                            disabled={!file.url}
-                          >
-                            LIHAT
-                          </button>
+                          <div className="flex flex-col items-end gap-1">
+                            <button 
+                              onClick={() => file.url && window.open(file.url, '_blank')}
+                              className="text-xs font-black text-yellow-600 hover:underline"
+                              disabled={!file.url}
+                            >
+                              LIHAT FILE
+                            </button>
+                            {file.parentFolderId && (
+                              <button 
+                                onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
+                                className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                              >
+                                BUKA FOLDER
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2347,13 +2375,23 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                         <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => file.url && window.open(file.url, '_blank')}
-                            className="text-xs font-black text-yellow-600 hover:underline"
-                            disabled={!file.url}
-                          >
-                            LIHAT
-                          </button>
+                          <div className="flex flex-col items-end gap-1">
+                            <button 
+                              onClick={() => file.url && window.open(file.url, '_blank')}
+                              className="text-xs font-black text-yellow-600 hover:underline"
+                              disabled={!file.url}
+                            >
+                              LIHAT FILE
+                            </button>
+                            {file.parentFolderId && (
+                              <button 
+                                onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
+                                className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                              >
+                                BUKA FOLDER
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2452,13 +2490,23 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                     <td className="px-6 py-4">
-                      <button 
-                        onClick={() => file.url && window.open(file.url, '_blank')}
-                        className="px-4 py-2 bg-black text-white text-[10px] font-black rounded-lg hover:bg-zinc-800 transition-all uppercase tracking-widest disabled:opacity-30"
-                        disabled={!file.url}
-                      >
-                        Buka
-                      </button>
+                      <div className="flex flex-col items-start gap-1">
+                        <button 
+                          onClick={() => file.url && window.open(file.url, '_blank')}
+                          className="px-4 py-2 bg-black text-white text-[10px] font-black rounded-lg hover:bg-zinc-800 transition-all uppercase tracking-widest disabled:opacity-30"
+                          disabled={!file.url}
+                        >
+                          Buka File
+                        </button>
+                        {file.parentFolderId && (
+                          <button 
+                            onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
+                            className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                          >
+                            BUKA FOLDER
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2629,6 +2677,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
         fileName: customFileName,
         driveFileId: driveResult.id,
         url: driveResult.webViewLink,
+        parentFolderId: finalFolderId,
         size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
         createdAt: new Date().toISOString(),
         uploadedBy: user.uid,
@@ -2709,6 +2758,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
               fileName: driveFile.name,
               driveFileId: driveFile.id,
               url: driveFile.webViewLink,
+              parentFolderId: driveFile.parentFolderId || '',
               customFolderName: driveFile.parentFolderName || '',
               createdAt: new Date().toISOString(),
               uploadedBy: user.uid,
@@ -3002,12 +3052,22 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       {archive.month || monthNameFallback(archive.customFolderName) ? `${archive.month || monthNameFallback(archive.customFolderName)} ` : ''}{archive.year}
                     </td>
                     <td className="px-6 py-4">
-                      <button 
-                        onClick={() => window.open(archive.url, '_blank')}
-                        className="text-xs font-bold uppercase tracking-widest text-zinc-900 hover:underline"
-                      >
-                        Buka Arsip
-                      </button>
+                      <div className="flex flex-col items-start gap-1">
+                        <button 
+                          onClick={() => window.open(archive.url, '_blank')}
+                          className="text-xs font-bold uppercase tracking-widest text-zinc-900 hover:underline"
+                        >
+                          Buka Arsip
+                        </button>
+                        {archive.parentFolderId && (
+                          <button 
+                            onClick={() => window.open(`https://drive.google.com/drive/folders/${archive.parentFolderId}`, '_blank')}
+                            className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                          >
+                            BUKA FOLDER
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
