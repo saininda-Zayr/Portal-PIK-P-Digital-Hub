@@ -427,9 +427,12 @@ const PublicRequestForm = ({ onClose }: { onClose: () => void }) => {
       </button>
 
       <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-2xl flex items-center justify-center text-black font-black text-xl mx-auto mb-4 shadow-lg shadow-yellow-400/20 border border-black/5">
-          C-P
-        </div>
+        <img 
+          src="/cloudp_logo.jpg" 
+          alt="Cloud-P Logo" 
+          className="w-16 h-16 rounded-2xl object-cover mx-auto mb-4 shadow-lg border border-black/5" 
+          referrerPolicy="no-referrer"
+        />
         <h2 className="text-3xl font-black tracking-tight">Layanan Permintaan Data</h2>
         <p className="text-zinc-500 font-medium">Silakan lengkapi formulir untuk mengajukan permintaan data ke Bidang Cloud-P.</p>
       </div>
@@ -600,9 +603,12 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
             <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
             
             <div className="text-center mb-10 relative z-10">
-              <div className="w-20 h-20 bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-500 rounded-3xl flex items-center justify-center text-black font-black text-3xl mx-auto mb-6 shadow-xl shadow-yellow-400/30 border border-black/10 relative overflow-hidden group">
-                <span className="tracking-tighter">C-P</span>
-              </div>
+              <img 
+                src="/cloudp_logo.jpg" 
+                alt="Cloud-P Logo" 
+                className="w-20 h-20 rounded-3xl object-cover mx-auto mb-6 shadow-xl border border-white/10" 
+                referrerPolicy="no-referrer"
+              />
               <h1 className="text-3xl font-black tracking-tight mb-2">CLOUD-P</h1>
               <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
             </div>
@@ -708,9 +714,12 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
         )}>
           {isOpen && (
             <div className="flex items-center gap-3 overflow-hidden transition-all duration-300">
-              <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-yellow-400 font-black text-sm shrink-0 shadow-md border border-yellow-500/10">
-                C-P
-              </div>
+              <img 
+                src="/cloudp_logo.jpg" 
+                alt="Cloud-P Logo" 
+                className="w-10 h-10 rounded-xl object-cover shrink-0 shadow-md border border-black/10" 
+                referrerPolicy="no-referrer"
+              />
               <span className="font-bold text-lg whitespace-nowrap">Cloud-P</span>
             </div>
           )}
@@ -761,7 +770,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
             </div>
             <div className="overflow-hidden">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 truncate leading-none mb-1">BKPSDM Polman</p>
-              <p className="text-xs font-black truncate text-black/80">Bidang Cloud-P</p>
+              <p className="text-xs font-black truncate text-black/80">Bidang PIK-P</p>
             </div>
           </div>
         </div>
