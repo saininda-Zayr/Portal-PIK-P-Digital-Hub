@@ -3,7 +3,7 @@
 
 ### ELEMEN VISUAL UTAMA
 1. **Headline**: SIM-ASN (Sistem Informasi Manajemen ASN)
-2. **Tagline**: Digitalisasi Administrasi Bidang PIK-P yang Terintegrasi & Transparan.
+2. **Tagline**: Digitalisasi Administrasi Bidang Cloud-P yang Terintegrasi & Transparan.
 3. **Hero Image**: Ilustrasi Folder Digital yang terhubung ke Cloud dengan ikon Polewali Mandar.
 
 ### KONTEN UTAMA (3 LANGKAH MUDAH)
@@ -18,5 +18,5 @@
 
 ### FOOTER
 - **Logo**: Pemerintah Kabupaten Polewali Mandar.
-- **Keterangan**: "Dikelola oleh Bidang Pengembangan Informasi Kepegawaian dan Pembinaan Aparatur (PIK-P)".
+- **Keterangan**: "Dikelola oleh Bidang Pengembangan Informasi Kepegawaian dan Pembinaan Aparatur (Cloud-P)".
 - **QR Code**: (Opsional) Link akses aplikasi.

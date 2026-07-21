@@ -1,11 +1,11 @@
 # STANDAR OPERASIONAL PROSEDUR (SOP)
 ## TATA KELOLA DAN PENGOPERASIAN APLIKASI SIM-ASN
-### BIDANG PENGEMBANGAN INFORMASI KEPEGAWAIAN DAN PEMBINAAN APARATUR (PIK-P)
+### BIDANG PENGEMBANGAN INFORMASI KEPEGAWAIAN DAN PEMBINAAN APARATUR (Cloud-P)
 
 ---
 
 ### 1. TUJUAN DAN RUANG LINGKUP
-SOP ini disusun sebagai panduan wajib bagi seluruh pegawai di lingkungan Bidang PIK-P dalam mengelola dokumen digital. Tujuannya adalah untuk menciptakan tertib administrasi, standarisasi penamaan berkas secara otomatis, serta menghapus praktik pengarsipan terpisah (data silo) yang menghambat kolaborasi kerja.
+SOP ini disusun sebagai panduan wajib bagi seluruh pegawai di lingkungan Bidang Cloud-P dalam mengelola dokumen digital. Tujuannya adalah untuk menciptakan tertib administrasi, standarisasi penamaan berkas secara otomatis, serta menghapus praktik pengarsipan terpisah (data silo) yang menghambat kolaborasi kerja.
 
 ### 2. KEBIJAKAN SENTRALISASI DATA (ANTI-SILO)
 1. **Kewajiban Penggunaan**: Seluruh dokumen finalized (final) hasil pekerjaan bidang wajib diunggah ke SIM-ASN.

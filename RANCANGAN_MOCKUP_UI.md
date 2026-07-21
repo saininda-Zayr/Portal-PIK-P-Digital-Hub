@@ -1,6 +1,6 @@
 # DOKUMEN RANCANGAN ANTARMUKA (MOCKUP UI)
 ## SISTEM INFORMASI MANAJEMEN ASN (SIM-ASN)
-**Bidang PIK-P Kabupaten Polewali Mandar**
+**Bidang Cloud-P Kabupaten Polewali Mandar**
 
 ---
 

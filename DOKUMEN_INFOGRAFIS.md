@@ -1,7 +1,7 @@
 # KONSEP VISUAL INFOGRAFIS: ALUR KERJA SIM-ASN
-## "Transformasi Digital: Dari Silo Data Menuju Satu Data PIK-P"
+## "Transformasi Digital: Dari Silo Data Menuju Satu Data Cloud-P"
 
-Infografis ini dirancang untuk memberikan pemahaman cepat kepada seluruh pegawai Bidang PIK-P mengenai tahapan yang harus dilalui agar dokumen tidak lagi tersimpan secara terisolasi (silo).
+Infografis ini dirancang untuk memberikan pemahaman cepat kepada seluruh pegawai Bidang Cloud-P mengenai tahapan yang harus dilalui agar dokumen tidak lagi tersimpan secara terisolasi (silo).
 
 ---
 

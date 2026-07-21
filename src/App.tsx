@@ -427,11 +427,11 @@ const PublicRequestForm = ({ onClose }: { onClose: () => void }) => {
       </button>
 
       <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-black font-black text-2xl mx-auto mb-4 shadow-lg shadow-yellow-400/10">
-          P
+        <div className="w-16 h-16 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-2xl flex items-center justify-center text-black font-black text-xl mx-auto mb-4 shadow-lg shadow-yellow-400/20 border border-black/5">
+          C-P
         </div>
         <h2 className="text-3xl font-black tracking-tight">Layanan Permintaan Data</h2>
-        <p className="text-zinc-500 font-medium">Silakan lengkapi formulir untuk mengajukan permintaan data ke Bidang PIK-P.</p>
+        <p className="text-zinc-500 font-medium">Silakan lengkapi formulir untuk mengajukan permintaan data ke Bidang Cloud-P.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -447,7 +447,7 @@ const PublicRequestForm = ({ onClose }: { onClose: () => void }) => {
               </div>
               <h3 className="text-2xl font-black text-emerald-900 mb-2">Permintaan Terkirim!</h3>
               <p className="text-emerald-700 font-medium mb-8">
-                Terima kasih. Permintaan data Anda telah kami terima dan akan segera diproses oleh tim PIK-P.
+                Terima kasih. Permintaan data Anda telah kami terima dan akan segera diproses oleh tim Cloud-P.
               </p>
               <button 
                 onClick={onClose}
@@ -600,10 +600,10 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
             <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
             
             <div className="text-center mb-10 relative z-10">
-              <div className="w-20 h-20 bg-yellow-400 rounded-3xl flex items-center justify-center text-black font-black text-4xl mx-auto mb-6 shadow-lg shadow-yellow-400/20">
-                P
+              <div className="w-20 h-20 bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-500 rounded-3xl flex items-center justify-center text-black font-black text-3xl mx-auto mb-6 shadow-xl shadow-yellow-400/30 border border-black/10 relative overflow-hidden group">
+                <span className="tracking-tighter">C-P</span>
               </div>
-              <h1 className="text-3xl font-black tracking-tight mb-2">PIK-P DIGITAL HUB</h1>
+              <h1 className="text-3xl font-black tracking-tight mb-2">CLOUD-P</h1>
               <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
             </div>
 
@@ -708,10 +708,10 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
         )}>
           {isOpen && (
             <div className="flex items-center gap-3 overflow-hidden transition-all duration-300">
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-yellow-400 font-bold text-xl shrink-0">
-                P
+              <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-yellow-400 font-black text-sm shrink-0 shadow-md border border-yellow-500/10">
+                C-P
               </div>
-              <span className="font-bold text-lg whitespace-nowrap">PIK-P HUB</span>
+              <span className="font-bold text-lg whitespace-nowrap">Cloud-P</span>
             </div>
           )}
           <button onClick={() => setIsOpen(!isOpen)} className="p-2 hover:bg-yellow-500 rounded-lg transition-colors shrink-0">
@@ -761,7 +761,7 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
             </div>
             <div className="overflow-hidden">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 truncate leading-none mb-1">BKPSDM Polman</p>
-              <p className="text-xs font-black truncate text-black/80">Bidang PIK-P</p>
+              <p className="text-xs font-black truncate text-black/80">Bidang Cloud-P</p>
             </div>
           </div>
         </div>
@@ -932,7 +932,7 @@ const Dashboard = ({ user }: { user: any }) => {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black text-black tracking-tight">DASHBOARD UTAMA</h1>
-          <p className="text-zinc-500 mt-2">Pantau statistik data dan aktivitas Bidang PIK-P secara real-time.</p>
+          <p className="text-zinc-500 mt-2">Pantau statistik data dan aktivitas Bidang Cloud-P secara real-time.</p>
         </div>
         {(stats.length === 0 || isAdmin) && !loading && (
           <button 
@@ -2864,7 +2864,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black text-black tracking-tight">ARSIP DIGITAL PRODUK JADI</h1>
-          <p className="text-zinc-500 mt-2">Penyimpanan dokumen resmi dan surat keputusan hasil olah data Bidang PIK-P.</p>
+          <p className="text-zinc-500 mt-2">Penyimpanan dokumen resmi dan surat keputusan hasil olah data Bidang Cloud-P.</p>
         </div>
         <div className="flex items-center gap-4">
           {isAuthorized && (
@@ -3691,7 +3691,7 @@ const WorkHub = ({ isAdmin }: { isAdmin: boolean }) => {
           {/* Tasks Section */}
           <div className="bg-white p-8 rounded-3xl border border-black/5 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-xl">Tugas Tim PIK-P</h3>
+              <h3 className="font-bold text-xl">Tugas Tim Cloud-P</h3>
               <button 
                 onClick={() => setShowAddModal('task')}
                 className="p-2 bg-zinc-900 text-white rounded-xl hover:bg-black transition-all"
@@ -3818,7 +3818,7 @@ const BerAKHLAK = () => {
     },
     { 
       title: 'Adaptif', 
-      desc: 'Transformasi dari penyimpanan fisik ke Digital Hub menunjukkan kesiapan PIK-P menghadapi era digital.',
+      desc: 'Transformasi dari penyimpanan fisik ke Digital Hub menunjukkan kesiapan Cloud-P menghadapi era digital.',
       icon: Zap,
       color: 'text-yellow-500'
     },
@@ -3834,7 +3834,7 @@ const BerAKHLAK = () => {
     <div className="space-y-8 animate-in fade-in duration-500">
       <header className="text-center max-w-2xl mx-auto">
         <h1 className="text-4xl font-black text-black tracking-tight">ASN BerAKHLAK</h1>
-        <p className="text-zinc-500 mt-2">Bagaimana Portal PIK-P Digital Hub mengimplementasikan nilai-nilai inti ASN.</p>
+        <p className="text-zinc-500 mt-2">Bagaimana Portal Cloud-P mengimplementasikan nilai-nilai inti ASN.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -3878,7 +3878,7 @@ const PanduanCepat = () => {
              <Smartphone size={40} />
           </div>
           <h1 className="text-5xl font-black tracking-tighter uppercase mb-4">SIM-ASN PORTAL</h1>
-          <p className="text-xl font-bold opacity-80 uppercase tracking-widest">Digitalisasi Administrasi Bidang PIK-P</p>
+          <p className="text-xl font-bold opacity-80 uppercase tracking-widest">Digitalisasi Administrasi Bidang Cloud-P</p>
         </div>
       </div>
 
@@ -3960,7 +3960,7 @@ const InfografisAlur = () => {
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header className="text-center max-w-2xl mx-auto">
         <h1 className="text-4xl font-black text-black tracking-tight uppercase mb-4">Infografis Alur Kerja</h1>
-        <p className="text-zinc-500">Visualisasi proses digitalisasi administrasi kepegawaian di Bidang PIK-P untuk menghindari silo data.</p>
+        <p className="text-zinc-500">Visualisasi proses digitalisasi administrasi kepegawaian di Bidang Cloud-P untuk menghindari silo data.</p>
       </header>
 
       <div className="relative">
@@ -4004,7 +4004,7 @@ const InfografisAlur = () => {
           <Database size={200} />
         </div>
         <div className="relative z-10">
-          <h2 className="text-3xl font-black mb-4 uppercase">Hasil Akhir: Satu Data PIK-P</h2>
+          <h2 className="text-3xl font-black mb-4 uppercase">Hasil Akhir: Satu Data Cloud-P</h2>
           <p className="text-zinc-400 max-w-xl mx-auto mb-8">
             Dengan mengikuti alur ini, kita menjamin keamanan dokumen dan memudahkan proses pencarian data untuk kebutuhan audit maupun pelayanan.
           </p>
@@ -4050,7 +4050,7 @@ const PusatTutorial = () => {
     },
     {
       title: "Pemanfaatan Work Hub",
-      desc: "Menggunakan papan pengumuman dan manajemen tugas tim di Bidang PIK-P.",
+      desc: "Menggunakan papan pengumuman dan manajemen tugas tim di Bidang Cloud-P.",
       videoId: "dQw4w9WgXcQ", // Placeholder - ganti dengan ID video aslinya
       duration: "06:15",
       category: "Kolaborasi"
@@ -4162,7 +4162,7 @@ const UnauthorizedPage = ({ onLogout }: { onLogout: () => void }) => {
         </div>
         <h1 className="text-2xl font-black text-black mb-4">AKSES DITOLAK</h1>
         <p className="text-zinc-500 text-sm leading-relaxed mb-8">
-          Maaf, akun Google Anda belum terdaftar dalam sistem PIK-P Digital Hub. 
+          Maaf, akun Google Anda belum terdaftar dalam sistem Cloud-P. 
           Silakan hubungi Administrator untuk mendapatkan izin akses.
         </p>
         <button 
@@ -4206,7 +4206,7 @@ const UserManagement = () => {
     <div className="space-y-8 animate-in fade-in duration-500">
       <header>
         <h1 className="text-4xl font-black text-black tracking-tight">MANAJEMEN USER</h1>
-        <p className="text-zinc-500 mt-2">Kelola izin akses staf ke dalam portal PIK-P Digital Hub.</p>
+        <p className="text-zinc-500 mt-2">Kelola izin akses staf ke dalam portal Cloud-P.</p>
       </header>
 
       <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
@@ -4457,7 +4457,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <div className="hidden lg:block">
                   <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Pagi,</p>
-                  <h2 className="text-lg font-bold">{user.displayName || 'Staf PIK-P'}</h2>
+                  <h2 className="text-lg font-bold">{user.displayName || 'Staf Cloud-P'}</h2>
                 </div>
                 <div className="lg:hidden">
                   {!isSidebarOpen && (
@@ -4515,7 +4515,7 @@ export default function App() {
           {/* Footer */}
           <footer className="mt-20 py-8 border-t border-zinc-200 text-center">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-              © 2026 Bidang PIK-P BKPSDM Polewali Mandar • Digital Hub Portal
+              © 2026 Bidang Cloud-P BKPSDM Polewali Mandar • Portal Cloud-P
             </p>
           </footer>
         </main>
