@@ -1,5 +1,6 @@
 {
   "name": "Cloud-P",
   "description": "Pusat Data Digital dan Work Hub Bidang Cloud-P BKPSDM Polewali Mandar dengan integrasi nilai ASN BerAKHLAK.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
