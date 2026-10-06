@@ -44,6 +44,7 @@ import {
   HardDrive,
   RefreshCw,
   FolderOpen,
+  FolderPlus,
   Settings,
   SlidersHorizontal,
   RotateCcw,
@@ -1908,9 +1909,33 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<'shared' | 'my_drive'>('shared');
+  const [isPersonalDriveEnabled, setIsPersonalDriveEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('cloudp_personal_drive_enabled_' + (user?.uid || 'user')) === 'true';
+  });
   const [folderUrls, setFolderUrls] = useState<Record<string, string>>(getStoredDriveFolders);
   const [isAuthExpired, setIsAuthExpired] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentPreviewItem | null>(null);
+
+  const personalDriveFolderId = localStorage.getItem('cloudp_personal_folder_' + (user?.uid || 'user'));
+  const personalDriveUrl = personalDriveFolderId 
+    ? `https://drive.google.com/drive/folders/${personalDriveFolderId}` 
+    : 'https://drive.google.com/drive/my-drive';
+
+  const userDriveName = driveQuota?.userEmail 
+    ? driveQuota.userEmail 
+    : user?.displayName 
+      ? user.displayName 
+      : user?.email || 'Google Drive Pribadi';
+
+  const personalDocs = useMemo(() => {
+    return documents.filter(d => 
+      d.storageTarget === 'my_drive' || 
+      d.isPersonalDrive === true || 
+      (personalDriveFolderId && d.parentFolderId === personalDriveFolderId)
+    );
+  }, [documents, personalDriveFolderId]);
+
+  const isPersonalDriveCardVisible = isPersonalDriveEnabled || uploadTarget === 'my_drive' || personalDocs.length > 0;
 
   // Advanced Filter & Search States
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -2222,6 +2247,9 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       if (currentTarget === 'my_drive') {
         setSyncStatus({ message: 'Menyiapkan folder Cloud-P di My Drive pribadi...', type: 'info' });
         const baseAppFolder = await getOrCreateFolder('Cloud-P Dokumen', 'root', activeToken);
+        localStorage.setItem('cloudp_personal_folder_' + (user?.uid || 'user'), baseAppFolder);
+        setIsPersonalDriveEnabled(true);
+        localStorage.setItem('cloudp_personal_drive_enabled_' + (user?.uid || 'user'), 'true');
         rootFolderId = await getOrCreateFolder(newDoc.category, baseAppFolder, activeToken);
       } else {
         const categoryObj = categories.find(c => c.name === newDoc.category);
@@ -2246,12 +2274,15 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       let finalFolderId = yearFolderId;
       let effectiveFolderName = '';
 
-      if (newDoc.category === 'Pengadaan Pegawai') {
-        if (newDoc.useCustomFolder && newDoc.customFolderName) {
-          finalFolderId = await getOrCreateFolder(newDoc.customFolderName, yearFolderId, activeToken);
-          effectiveFolderName = newDoc.customFolderName;
-        }
-      } else {
+      if (newDoc.useCustomFolder && newDoc.customFolderName?.trim()) {
+        const customName = newDoc.customFolderName.trim().toUpperCase();
+        finalFolderId = await getOrCreateFolder(customName, yearFolderId, activeToken);
+        effectiveFolderName = customName;
+      } else if (newDoc.customFolderName?.trim()) {
+        const customName = newDoc.customFolderName.trim().toUpperCase();
+        finalFolderId = await getOrCreateFolder(customName, yearFolderId, activeToken);
+        effectiveFolderName = customName;
+      } else if (newDoc.category !== 'Pengadaan Pegawai' && newDoc.month) {
         finalFolderId = await getOrCreateFolder(newDoc.month, yearFolderId, activeToken);
         effectiveFolderName = newDoc.month;
       }
@@ -2306,7 +2337,10 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           customFolderName: effectiveFolderName,
           createdAt: new Date().toISOString(),
           uploadedBy: user.uid,
-          uploaderName: user.displayName
+          uploaderName: user.displayName,
+          storageTarget: currentTarget,
+          isPersonalDrive: currentTarget === 'my_drive',
+          driveAccount: driveQuota?.userEmail || user.email || ''
         });
       }
       
@@ -2564,6 +2598,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         const asn = (getDocJenisAsn(doc) || '').toLowerCase();
         const yr = (doc.year || '').toString().toLowerCase();
         const mo = (doc.month || '').toLowerCase();
+        const folder = (doc.customFolderName || '').toLowerCase();
 
         const matchesKeyword = 
           docName.includes(q) ||
@@ -2573,14 +2608,20 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           uploader.includes(q) ||
           asn.includes(q) ||
           yr.includes(q) ||
-          mo.includes(q);
+          mo.includes(q) ||
+          folder.includes(q);
 
         if (!matchesKeyword) return false;
       }
 
       // 2. Category Filter
       if (filterCategory !== 'all') {
-        if (doc.category !== filterCategory) return false;
+        if (filterCategory === 'my_drive') {
+          const isPersonal = doc.storageTarget === 'my_drive' || doc.isPersonalDrive === true || (personalDriveFolderId && doc.parentFolderId === personalDriveFolderId);
+          if (!isPersonal) return false;
+        } else if (doc.category !== filterCategory) {
+          return false;
+        }
       }
 
       // 3. Jenis ASN Filter
@@ -2886,75 +2927,121 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                   </div>
                 </div>
 
-                {newDoc.category === 'Pengadaan Pegawai' && (
-                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100 space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Pilih Folder (Opsional)</label>
-                      {(() => {
-                        const existingFolders = Array.from(new Set(
-                          documents
-                            .filter(d => 
-                              d.category === 'Pengadaan Pegawai' && 
-                              d.activityCode === newDoc.activityCode && 
-                              d.year === newDoc.year && 
-                              d.customFolderName
-                            )
-                            .map(d => d.customFolderName)
-                        ));
-                        
-                        return (
-                          <select 
-                            value={newDoc.useCustomFolder ? "" : newDoc.customFolderName}
-                            onChange={e => {
-                              const val = e.target.value;
-                              if (val) {
-                                setNewDoc({...newDoc, customFolderName: val, useCustomFolder: false});
-                              } else {
-                                setNewDoc({...newDoc, customFolderName: '', useCustomFolder: false});
-                              }
-                            }}
-                            className="w-full p-2.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 text-sm"
-                          >
-                            <option value="">-- Letakkan di Luar Folder --</option>
-                            {existingFolders.map(folder => (
-                              <option key={folder} value={folder}>{folder}</option>
-                            ))}
-                          </select>
-                        );
-                      })()}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-zinc-200">
-                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Atau Buat Folder Baru?</label>
-                      <input 
-                        type="checkbox" 
-                        checked={newDoc.useCustomFolder}
-                        onChange={e => {
-                          const checked = e.target.checked;
-                          setNewDoc({
-                            ...newDoc, 
-                            useCustomFolder: checked, 
-                            customFolderName: checked ? '' : newDoc.customFolderName 
-                          });
-                        }}
-                        className="w-5 h-5 rounded border-zinc-300 text-yellow-400 focus:ring-yellow-400"
-                      />
+                {/* Pengorganisasian Folder Kustom / Nama Proyek Spesifik (Untuk Semua Kategori DataCenter) */}
+                <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200/80 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-yellow-400/20 text-yellow-700 flex items-center justify-center">
+                        <FolderPlus size={16} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black uppercase tracking-wider text-zinc-800">
+                          Folder Kustom / Nama Proyek
+                        </label>
+                        <p className="text-[11px] text-zinc-500">
+                          Organisir dokumen sesuai nama proyek atau kegiatan spesifik
+                        </p>
+                      </div>
                     </div>
                     {newDoc.useCustomFolder && (
-                      <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Nama Folder Baru</label>
-                        <input 
-                          required={newDoc.useCustomFolder}
-                          type="text" 
-                          value={newDoc.customFolderName}
-                          onChange={e => setNewDoc({...newDoc, customFolderName: e.target.value})}
-                          className="w-full p-2.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 text-sm"
-                          placeholder="Contoh: BERKAS SELEKSI KOMPETENSI"
-                        />
-                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-yellow-400 text-black">
+                        Folder Kustom Aktif
+                      </span>
                     )}
                   </div>
-                )}
+
+                  {/* Mode Pilihan: Standar vs Folder Kustom */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewDoc({ ...newDoc, useCustomFolder: false, customFolderName: '' })}
+                      className={cn(
+                        "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                        !newDoc.useCustomFolder 
+                          ? "bg-black text-white border-black shadow-sm" 
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                      )}
+                    >
+                      <FolderOpen size={14} /> 
+                      {newDoc.category === 'Pengadaan Pegawai' ? 'Folder Utama (Root)' : 'Folder Standar (Bulan)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewDoc({ ...newDoc, useCustomFolder: true })}
+                      className={cn(
+                        "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                        newDoc.useCustomFolder 
+                          ? "bg-yellow-400 text-black border-yellow-500 shadow-sm" 
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                      )}
+                    >
+                      <FolderPlus size={14} className={newDoc.useCustomFolder ? "text-black" : "text-zinc-500"} /> 
+                      Folder Kustom / Proyek
+                    </button>
+                  </div>
+
+                  {newDoc.useCustomFolder && (() => {
+                    const existingFolders = Array.from(new Set(
+                      documents
+                        .filter(d => 
+                          d.category === newDoc.category && 
+                          d.activityCode === newDoc.activityCode && 
+                          d.year === newDoc.year && 
+                          d.customFolderName &&
+                          !MONTHS.includes(d.customFolderName)
+                        )
+                        .map(d => d.customFolderName)
+                    ));
+
+                    return (
+                      <div className="space-y-3 pt-2 border-t border-zinc-200/80 animate-in fade-in duration-200">
+                        {existingFolders.length > 0 && (
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                              Pilih Folder Kustom yang Sudah Ada
+                            </label>
+                            <select 
+                              value={existingFolders.includes(newDoc.customFolderName) ? newDoc.customFolderName : ""}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (val) {
+                                  setNewDoc({ ...newDoc, customFolderName: val });
+                                }
+                              }}
+                              className="w-full p-2.5 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 text-sm font-medium"
+                            >
+                              <option value="">-- Atau Ketik Nama Folder Baru di Bawah --</option>
+                              {existingFolders.map(folder => (
+                                <option key={folder} value={folder}>📁 {folder}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center justify-between">
+                            <span>Nama Folder Kustom / Proyek Baru</span>
+                            <span className="text-amber-600 font-bold">*Wajib diisi</span>
+                          </label>
+                          <div className="relative">
+                            <input 
+                              required={newDoc.useCustomFolder}
+                              type="text" 
+                              value={newDoc.customFolderName}
+                              onChange={e => setNewDoc({ ...newDoc, customFolderName: e.target.value.toUpperCase() })}
+                              className="w-full p-2.5 pl-9 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-yellow-400 text-sm font-medium uppercase placeholder:normal-case"
+                              placeholder="Contoh: PROYEK ANALISIS KEBUTUHAN ASN, SELEKSI TERBUKA JPT"
+                            />
+                            <FolderPlus size={15} className="absolute left-3 top-3 text-zinc-400" />
+                          </div>
+                          <p className="text-[10px] text-zinc-400">
+                            Folder ini akan dibuat otomatis di Google Drive dan terdaftar sebagai folder proyek di menu Pusat Data.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
@@ -3054,7 +3141,11 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       </button>
                       <button
                         type="button"
-                        onClick={() => setUploadTarget('my_drive')}
+                        onClick={() => {
+                          setUploadTarget('my_drive');
+                          setIsPersonalDriveEnabled(true);
+                          localStorage.setItem('cloudp_personal_drive_enabled_' + (user?.uid || 'user'), 'true');
+                        }}
                         className={cn(
                           "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
                           uploadTarget === 'my_drive' 
@@ -3070,6 +3161,14 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                         ? 'Tersimpan di folder kategori Cloud-P. Jika kuota pemilik folder penuh, gunakan opsi "My Drive Pribadi".' 
                         : 'Tersimpan otomatis di folder "Cloud-P Dokumen" di Google Drive pribadi Anda.'}
                     </p>
+                    {uploadTarget === 'my_drive' && (
+                      <div className="p-2.5 bg-yellow-50 border border-yellow-200/80 rounded-xl flex items-center gap-2 text-[11px] font-bold text-yellow-900 animate-in fade-in">
+                        <CheckCircle2 size={14} className="text-yellow-600 shrink-0" />
+                        <span>
+                          Kartu Jembatan atas nama <strong>{userDriveName}</strong> aktif di menu Pusat Data & Arsip Digital!
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   {isSubmitting && (
@@ -3329,7 +3428,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-6", isPersonalDriveCardVisible ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
             {categories.map((cat, i) => (
               <motion.div 
                 whileHover={{ y: -5 }}
@@ -3347,6 +3446,55 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 </div>
               </motion.div>
             ))}
+
+            {/* Kartu Jembatan Google Drive Pribadi User */}
+            {isPersonalDriveCardVisible && (
+              <motion.div 
+                whileHover={{ y: -5 }}
+                className="relative bg-gradient-to-br from-zinc-950 via-zinc-900 to-black text-white p-8 rounded-3xl border-2 border-yellow-400/50 shadow-xl hover:shadow-2xl hover:border-yellow-400 transition-all cursor-pointer group overflow-hidden flex flex-col justify-between"
+                onClick={() => window.open(personalDriveUrl, '_blank')}
+                title="Buka Google Drive Pribadi Anda"
+              >
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-400/10 rounded-full blur-2xl pointer-events-none" />
+
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center p-3 border border-white/10 group-hover:scale-110 transition-transform shadow-inner">
+                      <img 
+                        src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" 
+                        alt="Google Drive" 
+                        className="w-full h-full object-contain" 
+                      />
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-yellow-400 text-black border border-yellow-300 shadow-sm flex items-center gap-1">
+                      <HardDrive size={11} /> Jembatan Drive
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="font-black text-xl text-white group-hover:text-yellow-400 transition-colors flex items-center gap-1.5 truncate">
+                      Drive Pribadi
+                    </h3>
+                    <p className="text-xs font-bold text-zinc-300 truncate" title={userDriveName}>
+                      {userDriveName}
+                    </p>
+                    <p className="text-[11px] text-zinc-400 truncate mt-1">
+                      Folder: <span className="text-yellow-300 font-mono">Cloud-P Dokumen</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-zinc-800/80 flex items-center justify-between">
+                  <span className="text-xs font-bold text-zinc-400">
+                    <strong className="text-white">{personalDocs.length}</strong> File Tersimpan
+                  </span>
+                  <div className="flex items-center gap-1 text-xs font-black text-yellow-400 group-hover:translate-x-1 transition-transform">
+                    <span>Buka Drive</span>
+                    <ExternalLink size={13} />
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
         </>
       ) : viewState.view === 'category' ? (
@@ -3465,152 +3613,220 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 <p className="text-zinc-500">{ACTIVITY_CODES[viewState.category!]?.find(a => a.code === viewState.activity)?.label}</p>
               </div>
             </div>
-            <button 
-              onClick={() => {
-                setNewDoc({ 
-                  ...newDoc, 
-                  category: viewState.category!, 
-                  activityCode: viewState.activity!, 
-                  year: viewState.year!,
-                  jenisAsn: 'PNS',
-                  useCustomFolder: false,
-                  customFolderName: ''
-                });
-                setIsModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20"
-            >
-              <PlusCircle size={20} /> TAMBAH DOKUMEN
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={() => {
+                  setNewDoc({ 
+                    ...newDoc, 
+                    category: viewState.category!, 
+                    activityCode: viewState.activity!, 
+                    year: viewState.year!,
+                    jenisAsn: 'PNS',
+                    useCustomFolder: true,
+                    customFolderName: ''
+                  });
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-zinc-200 hover:border-yellow-400 text-zinc-800 font-bold rounded-2xl transition-all shadow-sm active:scale-95"
+                title="Buat folder kustom baru untuk mengelompokkan dokumen proyek atau kegiatan spesifik"
+              >
+                <FolderPlus size={18} className="text-yellow-600" />
+                <span className="hidden sm:inline">BUAT FOLDER PROYEK</span>
+              </button>
+              <button 
+                onClick={() => {
+                  setNewDoc({ 
+                    ...newDoc, 
+                    category: viewState.category!, 
+                    activityCode: viewState.activity!, 
+                    year: viewState.year!,
+                    jenisAsn: 'PNS',
+                    useCustomFolder: false,
+                    customFolderName: ''
+                  });
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black rounded-2xl hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-400/20 active:scale-95"
+              >
+                <PlusCircle size={20} /> TAMBAH DOKUMEN
+              </button>
+            </div>
           </div>
           
-          {viewState.category === 'Pengadaan Pegawai' ? (
-            <div className="space-y-6">
-              {/* Folders & Documents for Pengadaan */}
-              {(() => {
-                const yearDocs = documents.filter(d => 
-                  d.category === viewState.category && 
-                  d.activityCode === viewState.activity && 
-                  d.year === viewState.year
-                );
-                
-                const customFolders = Array.from(new Set(
-                  yearDocs.filter(d => d.customFolderName).map(d => d.customFolderName)
-                ));
-                
-                const rootDocs = yearDocs.filter(d => !d.customFolderName);
-                
-                return (
-                  <div className="space-y-8">
-                    {customFolders.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {customFolders.map(folder => (
+          {(() => {
+            const yearDocs = documents.filter(d => 
+              d.category === viewState.category && 
+              d.activityCode === viewState.activity && 
+              d.year === viewState.year
+            );
+            
+            const customFolders = Array.from(new Set(
+              yearDocs
+                .filter(d => d.customFolderName && !MONTHS.includes(d.customFolderName))
+                .map(d => d.customFolderName)
+            ));
+            
+            const pengadaanRootDocs = yearDocs.filter(d => !d.customFolderName);
+
+            return (
+              <div className="space-y-8">
+                {/* Bagian Folder Kustom / Proyek Spesifik (Tampil untuk semua kategori jika ada) */}
+                {customFolders.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FolderPlus className="text-yellow-600" size={18} />
+                        <h3 className="font-black text-sm uppercase tracking-wider text-zinc-700">
+                          Folder Kustom & Proyek Spesifik ({customFolders.length})
+                        </h3>
+                      </div>
+                      <span className="text-xs font-bold text-zinc-400">
+                        Klik folder untuk membuka dokumen proyek
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {customFolders.map(folder => {
+                        const countInFolder = yearDocs.filter(d => d.customFolderName === folder).length;
+                        return (
                           <motion.button 
                             key={folder}
                             whileHover={{ y: -5 }}
                             onClick={() => setViewState({ ...viewState, view: 'customFolder', customFolder: folder })}
-                            className="bg-white p-6 rounded-3xl border border-black/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 text-left group"
+                            className="bg-white p-6 rounded-3xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all flex items-center justify-between text-left group"
                           >
-                            <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600 shrink-0">
-                              <Database size={24} />
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600 shrink-0">
+                                <FolderPlus size={22} />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-sm leading-tight uppercase line-clamp-2 text-zinc-900 group-hover:text-yellow-600">
+                                  {folder}
+                                </span>
+                                <span className="text-[11px] text-zinc-400 font-medium">
+                                  {countInFolder} Dokumen
+                                </span>
+                              </div>
                             </div>
-                            <span className="font-bold text-sm leading-tight uppercase line-clamp-2">{folder}</span>
+                            <ChevronRight size={16} className="text-zinc-300 group-hover:text-yellow-600 shrink-0 ml-2" />
                           </motion.button>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
-                      <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
-                        <h3 className="font-bold">Daftar Dokumen</h3>
-                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{rootDocs.length} File</span>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
-                            <tr>
-                              <th className="px-6 py-4">Nama File</th>
-                              <th className="px-6 py-4">Update</th>
-                              <th className="px-6 py-4">Oleh</th>
-                              <th className="px-6 py-4 text-right">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-100">
-                            {rootDocs.length === 0 ? (
-                              <tr>
-                                <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-sm">Belum ada dokumen di tahun ini.</td>
-                              </tr>
-                            ) : rootDocs.map((file, i) => (
-                              <tr key={i} className="hover:bg-zinc-50 transition-colors group">
-                                <td className="px-6 py-4">
-                                  <div 
-                                    className="flex items-center gap-3 cursor-pointer group/item"
-                                    onClick={() => setPreviewDoc(file)}
-                                    title="Klik untuk pratinjau isi berkas"
-                                  >
-                                    <FileText size={16} className="text-zinc-400 group-hover/item:text-yellow-600 transition-colors shrink-0" />
-                                    <span className="text-sm font-bold group-hover/item:text-yellow-600 group-hover/item:underline">{file.fileName || file.name}</span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-zinc-500">
-                                  {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
-                                </td>
-                                <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
-                                <td className="px-6 py-4 text-right">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <button 
-                                      type="button"
-                                      onClick={() => setPreviewDoc(file)}
-                                      className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
-                                      title="Pratinjau isi dokumen langsung di aplikasi"
-                                    >
-                                      <Eye size={12} />
-                                      <span>Pratinjau</span>
-                                    </button>
-                                    <button 
-                                      type="button"
-                                      onClick={() => file.url && window.open(file.url, '_blank')}
-                                      className="p-1.5 bg-zinc-900 hover:bg-black text-white rounded-lg transition-all disabled:opacity-30"
-                                      disabled={!file.url}
-                                      title="Buka di tab baru Google Drive"
-                                    >
-                                      <ExternalLink size={12} />
-                                    </button>
-                                    {file.parentFolderId && (
-                                      <button 
-                                        type="button"
-                                        onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
-                                        className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
-                                        title="Buka Folder Drive"
-                                      >
-                                        <FolderOpen size={13} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })()}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {MONTHS.map(month => (
-                <button 
-                  key={month}
-                  onClick={() => setViewState({ ...viewState, view: 'month', month: month })}
-                  className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all text-center group"
-                >
-                  <span className="font-bold group-hover:text-yellow-600">{month}</span>
-                </button>
-              ))}
-            </div>
-          )}
+                )}
+
+                {/* Untuk Kategori Berbasis Bulan (Informasi Kepegawaiaan & Kinerja Pegawai) */}
+                {viewState.category !== 'Pengadaan Pegawai' ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="text-zinc-500" size={18} />
+                        <h3 className="font-black text-sm uppercase tracking-wider text-zinc-700">
+                          Berdasarkan Periode Bulan
+                        </h3>
+                      </div>
+                      <span className="text-xs font-bold text-zinc-400">Pilih bulan dokumen</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {MONTHS.map(month => {
+                        const countInMonth = yearDocs.filter(d => d.month === month || d.customFolderName === month).length;
+                        return (
+                          <button 
+                            key={month}
+                            onClick={() => setViewState({ ...viewState, view: 'month', month: month })}
+                            className="bg-white p-6 rounded-2xl border border-black/5 shadow-sm hover:border-yellow-400 hover:shadow-md transition-all text-center group flex flex-col items-center justify-center"
+                          >
+                            <span className="font-bold group-hover:text-yellow-600">{month}</span>
+                            <span className="text-[11px] text-zinc-400 font-medium mt-1">
+                              {countInMonth} Dokumen
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* Untuk Pengadaan Pegawai: Tampilkan Tabel Dokumen Tanpa Folder Kustom */
+                  <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+                      <h3 className="font-bold">Daftar Dokumen (Tanpa Folder Kustom)</h3>
+                      <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{pengadaanRootDocs.length} File</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                          <tr>
+                            <th className="px-6 py-4">Nama File</th>
+                            <th className="px-6 py-4">Update</th>
+                            <th className="px-6 py-4">Oleh</th>
+                            <th className="px-6 py-4 text-right">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {pengadaanRootDocs.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-sm">Belum ada dokumen di luar folder kustom tahun ini.</td>
+                            </tr>
+                          ) : pengadaanRootDocs.map((file, i) => (
+                            <tr key={i} className="hover:bg-zinc-50 transition-colors group">
+                              <td className="px-6 py-4">
+                                <div 
+                                  className="flex items-center gap-3 cursor-pointer group/item"
+                                  onClick={() => setPreviewDoc(file)}
+                                  title="Klik untuk pratinjau isi berkas"
+                                >
+                                  <FileText size={16} className="text-zinc-400 group-hover/item:text-yellow-600 transition-colors shrink-0" />
+                                  <span className="text-sm font-bold group-hover/item:text-yellow-600 group-hover/item:underline">{file.fileName || file.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-zinc-500">
+                                {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button 
+                                    type="button"
+                                    onClick={() => setPreviewDoc(file)}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
+                                    title="Pratinjau isi dokumen langsung di aplikasi"
+                                  >
+                                    <Eye size={12} />
+                                    <span>Pratinjau</span>
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => file.url && window.open(file.url, '_blank')}
+                                    className="p-1.5 bg-zinc-900 hover:bg-black text-white rounded-lg transition-all disabled:opacity-30"
+                                    disabled={!file.url}
+                                    title="Buka di tab baru Google Drive"
+                                  >
+                                    <ExternalLink size={12} />
+                                  </button>
+                                  {file.parentFolderId && (
+                                    <button 
+                                      type="button"
+                                      onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
+                                      className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                                      title="Buka Folder Drive"
+                                    >
+                                      <FolderOpen size={13} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       ) : viewState.view === 'customFolder' ? (
         <div className="space-y-6">
@@ -3661,14 +3877,25 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
-                  {documents
-                    .filter(d => 
+                  {(() => {
+                    const folderDocs = documents.filter(d => 
                       d.category === viewState.category && 
                       d.activityCode === viewState.activity && 
                       d.year === viewState.year && 
                       d.customFolderName === viewState.customFolder
-                    )
-                    .map((file, i) => (
+                    );
+
+                    if (folderDocs.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-12 text-center text-zinc-400 text-sm">
+                            Belum ada dokumen di dalam folder proyek ini. Klik tombol Tambah Dokumen untuk mengunggah berkas.
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return folderDocs.map((file, i) => (
                       <tr key={i} className="hover:bg-zinc-50 transition-colors group">
                         <td className="px-6 py-4">
                           <div 
@@ -3717,7 +3944,8 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -3946,6 +4174,9 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       <option value="Pengadaan Pegawai">Pengadaan Pegawai</option>
                       <option value="Informasi Kepegawaiaan">Informasi Kepegawaiaan</option>
                       <option value="Kinerja Pegawai">Kinerja Pegawai</option>
+                      {isPersonalDriveCardVisible && (
+                        <option value="my_drive">⭐ Drive Pribadi ({userDriveName})</option>
+                      )}
                     </select>
                   </div>
 
@@ -4078,7 +4309,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Filter Aktif:</span>
                 {filterCategory !== 'all' && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-zinc-900 text-white shadow-sm">
-                    Kategori: {filterCategory}
+                    Kategori: {filterCategory === 'my_drive' ? `Drive Pribadi (${userDriveName})` : filterCategory}
                     <button onClick={() => setFilterCategory('all')} className="hover:text-yellow-400">
                       <X size={12} />
                     </button>
@@ -4324,12 +4555,36 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<'shared' | 'my_drive'>('shared');
+  const [isPersonalDriveEnabled, setIsPersonalDriveEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('cloudp_personal_drive_enabled_' + (user?.uid || 'user')) === 'true';
+  });
   const [folderUrls, setFolderUrls] = useState<Record<string, string>>(getStoredDriveFolders);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isAuthExpired, setIsAuthExpired] = useState(false);
+
+  const personalDriveFolderId = localStorage.getItem('cloudp_personal_folder_' + (user?.uid || 'user'));
+  const personalDriveUrl = personalDriveFolderId 
+    ? `https://drive.google.com/drive/folders/${personalDriveFolderId}` 
+    : 'https://drive.google.com/drive/my-drive';
+
+  const userDriveName = driveQuota?.userEmail 
+    ? driveQuota.userEmail 
+    : user?.displayName 
+      ? user.displayName 
+      : user?.email || 'Google Drive Pribadi';
+
+  const personalArchives = useMemo(() => {
+    return archives.filter(a => 
+      a.storageTarget === 'my_drive' || 
+      a.isPersonalDrive === true || 
+      (personalDriveFolderId && a.parentFolderId === personalDriveFolderId)
+    );
+  }, [archives, personalDriveFolderId]);
+
+  const isPersonalDriveCardVisible = isPersonalDriveEnabled || uploadTarget === 'my_drive' || personalArchives.length > 0;
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
 
@@ -4562,6 +4817,9 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       if (currentTarget === 'my_drive') {
         setSyncStatus({ message: 'Menyiapkan folder Cloud-P di My Drive pribadi...', type: 'info' });
         const baseAppFolder = await getOrCreateFolder('Cloud-P Dokumen', 'root', activeToken);
+        localStorage.setItem('cloudp_personal_folder_' + (user?.uid || 'user'), baseAppFolder);
+        setIsPersonalDriveEnabled(true);
+        localStorage.setItem('cloudp_personal_drive_enabled_' + (user?.uid || 'user'), 'true');
         rootFolderId = await getOrCreateFolder('Arsip Digital', baseAppFolder, activeToken);
       } else {
         const categoryObj = archiveFolders.find(c => c.name === newArchive.category);
@@ -4625,7 +4883,10 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           size: (currentFile.size / (1024 * 1024)).toFixed(2) + ' MB',
           createdAt: new Date().toISOString(),
           uploadedBy: user.uid,
-          uploaderName: user.displayName
+          uploaderName: user.displayName,
+          storageTarget: currentTarget,
+          isPersonalDrive: currentTarget === 'my_drive',
+          driveAccount: driveQuota?.userEmail || user.email || ''
         });
       }
       
@@ -4990,7 +5251,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-6", isPersonalDriveCardVisible ? "lg:grid-cols-4" : "sm:grid-cols-3")}>
         {archiveFolders.map((cat, i) => (
           <motion.div 
             whileHover={{ y: -5 }}
@@ -5008,6 +5269,55 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
             </div>
           </motion.div>
         ))}
+
+        {/* Kartu Jembatan Google Drive Pribadi User */}
+        {isPersonalDriveCardVisible && (
+          <motion.div 
+            whileHover={{ y: -5 }}
+            className="relative bg-gradient-to-br from-zinc-950 via-zinc-900 to-black text-white p-6 rounded-3xl border-2 border-yellow-400/50 shadow-xl hover:shadow-2xl hover:border-yellow-400 transition-all cursor-pointer group overflow-hidden flex flex-col justify-between"
+            onClick={() => window.open(personalDriveUrl, '_blank')}
+            title="Buka Google Drive Pribadi Anda"
+          >
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-400/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center p-2.5 border border-white/10 group-hover:scale-110 transition-transform shadow-inner">
+                  <img 
+                    src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" 
+                    alt="Google Drive" 
+                    className="w-full h-full object-contain" 
+                  />
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-yellow-400 text-black border border-yellow-300 shadow-sm flex items-center gap-1">
+                  <HardDrive size={11} /> Jembatan Drive
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="font-black text-lg text-white group-hover:text-yellow-400 transition-colors flex items-center gap-1.5 truncate">
+                  Drive Pribadi
+                </h3>
+                <p className="text-xs font-bold text-zinc-300 truncate" title={userDriveName}>
+                  {userDriveName}
+                </p>
+                <p className="text-[11px] text-zinc-400 truncate mt-1">
+                  Folder: <span className="text-yellow-300 font-mono">Cloud-P Dokumen</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-400">
+                <strong className="text-white">{personalArchives.length}</strong> Arsip Tersimpan
+              </span>
+              <div className="flex items-center gap-1 text-xs font-black text-yellow-400 group-hover:translate-x-1 transition-transform">
+                <span>Buka Drive</span>
+                <ExternalLink size={13} />
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
@@ -5237,7 +5547,11 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                     </button>
                     <button
                       type="button"
-                      onClick={() => setUploadTarget('my_drive')}
+                      onClick={() => {
+                        setUploadTarget('my_drive');
+                        setIsPersonalDriveEnabled(true);
+                        localStorage.setItem('cloudp_personal_drive_enabled_' + (user?.uid || 'user'), 'true');
+                      }}
                       className={cn(
                         "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
                         uploadTarget === 'my_drive' 
@@ -5253,6 +5567,14 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       ? 'Tersimpan di folder arsip pusat Cloud-P. Jika kuota penuh, beralih ke opsi "My Drive Pribadi".' 
                       : 'Tersimpan otomatis di folder "Cloud-P Dokumen/Arsip Digital" di Google Drive akun pribadi Anda.'}
                   </p>
+                  {uploadTarget === 'my_drive' && (
+                    <div className="p-2.5 bg-yellow-50 border border-yellow-200/80 rounded-xl flex items-center gap-2 text-[11px] font-bold text-yellow-900 animate-in fade-in">
+                      <CheckCircle2 size={14} className="text-yellow-600 shrink-0" />
+                      <span>
+                        Kartu Jembatan atas nama <strong>{userDriveName}</strong> aktif di menu Arsip Digital & Pusat Data!
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
