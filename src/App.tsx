@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Component, useRef } from 'react';
+import React, { useState, useEffect, Component, useRef, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Database, 
@@ -38,7 +38,19 @@ import {
   Youtube,
   PlayCircle,
   ArrowRightCircle,
-  Smartphone
+  Smartphone,
+  AlertTriangle,
+  ExternalLink,
+  HardDrive,
+  RefreshCw,
+  FolderOpen,
+  Settings,
+  SlidersHorizontal,
+  RotateCcw,
+  Eye,
+  Download,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -241,7 +253,7 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
           const errorText = await response.text();
           console.error(`Drive API Error (${response.status}):`, errorText);
           if (response.status === 401) {
-            throw new Error('Sesi Google Drive telah berakhir. Silakan hubungkan ulang di menu Pengaturan.');
+            throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
           }
           break; 
         }
@@ -289,19 +301,93 @@ const fetchAllFilesRecursively = async (rootFolderId: string, accessToken: strin
 };
 
 /**
+ * Drive storage quota interface and fetcher
+ */
+export interface DriveQuotaDetails {
+  userEmail?: string;
+  userName?: string;
+  limit: number;
+  usage: number; // Total across Google Account (Drive + Gmail + Photos)
+  usageInDrive: number; // Only Drive
+  usageInDriveTrash: number; // Trash
+  isExceeded: boolean;
+  percentUsed: number;
+  limitFormatted: string;
+  usageFormatted: string;
+  usageInDriveFormatted: string;
+  trashFormatted: string;
+  freeSpaceFormatted: string;
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const fetchDriveStorageQuota = async (accessToken: string): Promise<DriveQuotaDetails | null> => {
+  try {
+    const res = await fetch('https://www.googleapis.com/drive/v3/about?fields=storageQuota,user', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (res.status === 401) {
+      throw new Error('TOKEN_EXPIRED_401');
+    }
+    if (!res.ok) return null;
+    const data = await res.json();
+    const quota = data.storageQuota;
+    const user = data.user;
+    if (!quota) return null;
+    const limit = parseInt(quota.limit, 10) || 0;
+    const usage = parseInt(quota.usage, 10) || 0;
+    const usageInDrive = parseInt(quota.usageInDrive, 10) || 0;
+    const usageInDriveTrash = parseInt(quota.usageInDriveTrash, 10) || 0;
+    const isExceeded = limit > 0 ? usage >= limit : false;
+    const percentUsed = limit > 0 ? Math.min(100, Math.round((usage / limit) * 100)) : 0;
+    const freeSpace = limit > usage ? limit - usage : 0;
+    return {
+      userEmail: user?.emailAddress || '',
+      userName: user?.displayName || '',
+      limit,
+      usage,
+      usageInDrive,
+      usageInDriveTrash,
+      isExceeded,
+      percentUsed,
+      limitFormatted: limit > 0 ? formatBytes(limit) : 'Tidak terbatas',
+      usageFormatted: formatBytes(usage),
+      usageInDriveFormatted: formatBytes(usageInDrive),
+      trashFormatted: formatBytes(usageInDriveTrash),
+      freeSpaceFormatted: limit > 0 ? formatBytes(freeSpace) : 'Tidak terbatas'
+    };
+  } catch (err: any) {
+    if (err?.message === 'TOKEN_EXPIRED_401') {
+      throw err;
+    }
+    console.warn('Could not fetch Drive storage quota:', err);
+    return null;
+  }
+};
+
+/**
  * Helper to find or create a folder in Google Drive
  */
 const getOrCreateFolder = async (folderName: string, parentId: string, accessToken: string) => {
   console.log(`Searching or creating folder: ${folderName} in parent: ${parentId}`);
   // Search for existing folder
   const query = encodeURIComponent(`name = '${folderName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
-  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`;
   
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
+    }
     const errText = await response.text();
     throw new Error(`Gagal mencari folder "${folderName}" (HTTP ${response.status}): ${errText}`);
   }
@@ -314,7 +400,7 @@ const getOrCreateFolder = async (folderName: string, parentId: string, accessTok
   
   console.log(`Folder not found, creating: ${folderName} inside ${parentId}`);
   // Create new folder if not found
-  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -328,8 +414,19 @@ const getOrCreateFolder = async (folderName: string, parentId: string, accessTok
   });
   
   if (!createResponse.ok) {
-    const errData = await createResponse.json();
+    if (createResponse.status === 401) {
+      throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
+    }
+    const errData = await createResponse.json().catch(() => ({}));
     const errMsg = errData.error?.message || 'Unknown error';
+    const reason = errData.error?.errors?.[0]?.reason || '';
+    if (
+      reason === 'storageQuotaExceeded' || 
+      errMsg.toLowerCase().includes('storage quota') || 
+      errMsg.toLowerCase().includes('quota has been exceeded')
+    ) {
+      throw new Error('KUOTA_DRIVE_PENUH: Google menolak pembuatan folder karena kapasitas penyimpanan Google Drive telah habis (Storage Quota Exceeded).');
+    }
     throw new Error(`Google Drive Error (HTTP ${createResponse.status}): ${errMsg}. Pastikan folder induk dengan ID ${parentId} masih ada dan akun Anda memiliki akses Editor.`);
   }
   
@@ -363,7 +460,12 @@ const fetchAllFolderIdsRecursively = async (rootFolderId: string, accessToken: s
           headers: { Authorization: `Bearer ${accessToken}` }
         });
 
-        if (!response.ok) break;
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
+          }
+          break;
+        }
 
         const data = await response.json();
         const items = data.files || [];
@@ -1070,6 +1172,701 @@ const ACTIVITY_CODES: Record<string, { code: string; label: string }[]> = {
   ]
 };
 
+export const DEFAULT_DRIVE_FOLDERS: Record<string, string> = {
+  'Pengadaan Pegawai': 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link',
+  'Informasi Kepegawaiaan': 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link',
+  'Kinerja Pegawai': 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link',
+  'Arsip Digital (Pusat)': 'https://drive.google.com/drive/folders/1CnG1puuC1kv_gw_t-NyX3aP2hKbnOHR2?usp=drive_link',
+};
+
+export const getStoredDriveFolders = (): Record<string, string> => {
+  try {
+    const saved = localStorage.getItem('custom_drive_folders');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...DEFAULT_DRIVE_FOLDERS, ...parsed };
+    }
+  } catch (e) {
+    console.warn('Error reading stored drive folders', e);
+  }
+  return { ...DEFAULT_DRIVE_FOLDERS };
+};
+
+export const saveStoredDriveFolders = (folders: Record<string, string>) => {
+  try {
+    localStorage.setItem('custom_drive_folders', JSON.stringify(folders));
+  } catch (e) {
+    console.warn('Error saving drive folders', e);
+  }
+};
+
+const DriveQuotaModal = ({
+  isOpen,
+  onClose,
+  quota,
+  onRefresh,
+  isRefreshing,
+  onSwitchAccount,
+  onOpenSettings
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  quota: DriveQuotaDetails | null;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  onSwitchAccount: () => void;
+  onOpenSettings?: () => void;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl border border-zinc-100 space-y-6"
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-yellow-400 flex items-center justify-center shadow-sm">
+              <HardDrive className="text-black" size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-black">Status Kuota Google Drive</h3>
+              <p className="text-xs text-zinc-400">Rincian kapasitas & akun penyimpanan</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-black transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {quota ? (
+          <div className="space-y-5">
+            {/* Account Info */}
+            <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200/80 flex items-center justify-between gap-3">
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Akun Terhubung</div>
+                <div className="text-sm font-bold text-zinc-900 truncate" title={quota.userEmail}>
+                  {quota.userEmail || 'Akun Google'}
+                </div>
+                {quota.userName && (
+                  <div className="text-xs text-zinc-500 truncate">{quota.userName}</div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onSwitchAccount}
+                className="px-3 py-2 bg-white hover:bg-yellow-400 border border-zinc-200 hover:border-yellow-400 text-zinc-700 hover:text-black rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+              >
+                <RefreshCw size={12} /> Ganti Akun
+              </button>
+            </div>
+
+            {/* Storage Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs font-bold text-zinc-600">Total Penggunaan Akun:</span>
+                <span className={cn(
+                  "text-sm font-black",
+                  quota.isExceeded ? "text-red-600" : quota.percentUsed > 85 ? "text-amber-600" : "text-zinc-900"
+                )}>
+                  {quota.usageFormatted} / {quota.limitFormatted} ({quota.percentUsed}%)
+                </span>
+              </div>
+              <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden p-0.5 border border-zinc-200">
+                <div 
+                  style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    quota.isExceeded ? "bg-red-500" : quota.percentUsed > 85 ? "bg-amber-500" : "bg-emerald-500"
+                  )}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] text-zinc-500 font-medium">
+                <span>0 GB</span>
+                <span>Sisa Ruang: <strong className="text-zinc-800">{quota.freeSpaceFormatted}</strong></span>
+                <span>{quota.limitFormatted}</span>
+              </div>
+            </div>
+
+            {/* Detailed Breakdown */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-zinc-500">Khusus File Google Drive</span>
+                <div className="text-base font-black text-zinc-900">{quota.usageInDriveFormatted}</div>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl border border-zinc-200 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-zinc-500">Sampah Drive (Trash)</span>
+                <div className="text-base font-black text-amber-700">{quota.trashFormatted}</div>
+              </div>
+            </div>
+
+            {/* Explanation Note */}
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 text-blue-900">
+                <Info size={14} className="shrink-0" />
+                Mengapa Muncul Penuh Saat Drive Masih 6 GB?
+              </p>
+              <p className="text-[11px] text-blue-900/90 leading-relaxed">
+                Kapasitas 15 GB dari Google merupakan <strong>akumulasi gabungan</strong> antara <strong>Google Drive</strong>, <strong>Gmail</strong> (email & lampiran), dan <strong>Google Photos</strong>. Jika file Drive baru 6 GB namun Gmail atau Foto mengisi sisanya hingga 15 GB, Google API tetap menganggap akun penuh dan menolak file baru.
+              </p>
+            </div>
+
+            {/* Action Links */}
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <a
+                href="https://drive.google.com/drive/trash"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold rounded-xl transition-all text-center"
+              >
+                <Trash2 size={13} /> Kosongkan Sampah ↗
+              </a>
+              <a
+                href="https://one.google.com/storage"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold rounded-xl transition-all text-center"
+              >
+                <ExternalLink size={13} /> Kelola Google One ↗
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-zinc-500 text-xs">
+            Memuat data kuota Google Drive...
+          </div>
+        )}
+
+        <div className="flex justify-between items-center pt-2 border-t border-zinc-100">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 text-xs font-bold text-zinc-500 hover:text-black transition-colors"
+            >
+              <RefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} /> Cek Ulang
+            </button>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSettings();
+                }}
+                className="flex items-center gap-1.5 text-xs font-bold text-zinc-600 hover:text-yellow-600 transition-colors"
+              >
+                <Settings size={13} /> Beralih / Atur Drive
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 bg-zinc-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-all"
+          >
+            Tutup
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+interface DriveSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  quota: DriveQuotaDetails | null;
+  onSwitchAccount: () => void;
+  folderUrls: Record<string, string>;
+  onUpdateFolderUrls: (newUrls: Record<string, string>) => void;
+}
+
+const DriveSettingsModal = ({
+  isOpen,
+  onClose,
+  quota,
+  onSwitchAccount,
+  folderUrls,
+  onUpdateFolderUrls
+}: DriveSettingsModalProps) => {
+  const [editedUrls, setEditedUrls] = useState<Record<string, string>>(folderUrls);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    setEditedUrls(folderUrls);
+  }, [folderUrls, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    saveStoredDriveFolders(editedUrls);
+    onUpdateFolderUrls(editedUrls);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2500);
+  };
+
+  const handleResetToDefault = () => {
+    if (confirm('Kembalikan semua tautan folder Google Drive ke folder default BKPSDM?')) {
+      setEditedUrls(DEFAULT_DRIVE_FOLDERS);
+      saveStoredDriveFolders(DEFAULT_DRIVE_FOLDERS);
+      onUpdateFolderUrls(DEFAULT_DRIVE_FOLDERS);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl border border-zinc-100 space-y-6 max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-yellow-400 flex items-center justify-center shadow-sm">
+              <Settings className="text-black" size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-black">Beralih & Pengaturan Penyimpanan Google Drive</h3>
+              <p className="text-xs text-zinc-400">Atur akun Google, folder tujuan, dan metode penyimpanan berkas</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-black transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* 1. Beralih Akun Google */}
+        <div className="p-5 bg-zinc-50 rounded-2xl border border-zinc-200 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Pilihan 1: Beralih Akun Google</span>
+              <h4 className="text-sm font-bold text-zinc-900">Ganti Akun Google Drive (Email Lain)</h4>
+              <p className="text-xs text-zinc-500">
+                {quota?.userEmail ? (
+                  <>Terhubung sebagai: <strong className="text-black">{quota.userEmail}</strong> ({quota.usageFormatted} / {quota.limitFormatted})</>
+                ) : (
+                  'Masuk dengan akun Google Drive dinas atau akun lain.'
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onSwitchAccount}
+              className="px-4 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black font-black rounded-xl text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95"
+            >
+              <RefreshCw size={14} /> Beralih Akun Google Sekarang
+            </button>
+          </div>
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            💡 <em>Jika kapasitas Google Drive akun saat ini hampir habis (15 GB) atau Anda ingin menggunakan Google Workspace dinas, klik tombol di atas untuk memilih akun Google yang berbeda melalui jendela login resmi Google.</em>
+          </p>
+        </div>
+
+        {/* 2. Pilihan Target Lokasi Penyimpanan */}
+        <div className="p-5 bg-amber-50/70 rounded-2xl border border-amber-200/80 space-y-2">
+          <span className="text-[10px] font-black uppercase tracking-wider text-amber-800">Pilihan 2: Lokasi Penyimpanan Berkas</span>
+          <h4 className="text-sm font-bold text-amber-950">Fleksibilitas Mode Simpan</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+            <div className="p-3 bg-white rounded-xl border border-amber-200 space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-zinc-900">
+                <FolderOpen size={14} className="text-yellow-600" /> Folder Bersama Kategori
+              </div>
+              <p className="text-[11px] text-zinc-600 leading-relaxed">
+                Tersimpan di folder Google Drive induk yang dikonfigurasi di bawah. Cocok untuk arsip bersama seluruh bidang.
+              </p>
+            </div>
+            <div className="p-3 bg-white rounded-xl border border-amber-200 space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-zinc-900">
+                <HardDrive size={14} className="text-zinc-900" /> My Drive Pribadi
+              </div>
+              <p className="text-[11px] text-zinc-600 leading-relaxed">
+                Tersimpan otomatis di folder <code>Cloud-P Dokumen</code> pada My Drive akun pribadi Anda sendiri.
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] text-amber-900/90 pt-1">
+            * Opsi ini dapat dipilih langsung saat Anda membuka formulir unggah dokumen atau arsip.
+          </p>
+        </div>
+
+        {/* 3. Kustomisasi Tautan Folder Google Drive */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Pilihan 3: Folder Google Drive Tujuan</span>
+              <h4 className="text-sm font-bold text-zinc-900">Tautan Folder Penyimpanan Utama</h4>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetToDefault}
+              className="text-xs text-zinc-500 hover:text-red-600 font-bold underline transition-colors"
+            >
+              Reset ke Default
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {Object.keys(DEFAULT_DRIVE_FOLDERS).map((folderName) => {
+              const currentUrl = editedUrls[folderName] || DEFAULT_DRIVE_FOLDERS[folderName];
+              const isCustom = currentUrl !== DEFAULT_DRIVE_FOLDERS[folderName];
+              
+              return (
+                <div key={folderName} className="p-3.5 bg-zinc-50 rounded-2xl border border-zinc-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-zinc-800">{folderName}</span>
+                    <div className="flex items-center gap-2">
+                      {isCustom ? (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] font-bold">
+                          Kustom
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-zinc-200 text-zinc-700 rounded-md text-[10px] font-bold">
+                          Default BKPSDM
+                        </span>
+                      )}
+                      <a
+                        href={currentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        Buka Folder <ExternalLink size={11} />
+                      </a>
+                    </div>
+                  </div>
+                  <input
+                    type="url"
+                    value={currentUrl}
+                    onChange={(e) => {
+                      setEditedUrls({
+                        ...editedUrls,
+                        [folderName]: e.target.value
+                      });
+                    }}
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    className="w-full p-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-mono text-zinc-700 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {saveSuccess && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            <span>Pengaturan tautan folder Google Drive berhasil disimpan!</span>
+          </div>
+        )}
+
+        <div className="flex justify-between items-center pt-3 border-t border-zinc-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl text-xs font-bold transition-all"
+          >
+            Tutup
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-6 py-2.5 bg-zinc-900 hover:bg-black text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95"
+            >
+              Simpan Perubahan Tautan
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+export const extractDriveFileId = (file?: { driveFileId?: string; url?: string } | null): string | null => {
+  if (!file) return null;
+  if (file.driveFileId && file.driveFileId.trim()) return file.driveFileId.trim();
+  if (file.url) {
+    const matchD = file.url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (matchD) return matchD[1];
+    const matchId = file.url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (matchId) return matchId[1];
+    const matchFolder = file.url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (matchFolder) return matchFolder[1];
+  }
+  return null;
+};
+
+const isImageFile = (fileName?: string) => {
+  if (!fileName) return false;
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp'].includes(ext || '');
+};
+
+export interface DocumentPreviewItem {
+  id?: string;
+  name?: string;
+  fileName?: string;
+  url?: string;
+  driveFileId?: string;
+  category?: string;
+  activityCode?: string;
+  jenisAsn?: string;
+  updateDate?: string;
+  createdAt?: string;
+  size?: string;
+  uploaderName?: string;
+  archiveType?: string;
+  month?: string;
+  year?: string;
+}
+
+interface DocumentPreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  document: DocumentPreviewItem | null;
+}
+
+const DocumentPreviewModal = ({
+  isOpen,
+  onClose,
+  document: doc
+}: DocumentPreviewModalProps) => {
+  const [iframeLoading, setIframeLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [viewMode, setViewMode] = useState<'drive' | 'image'>('drive');
+
+  useEffect(() => {
+    if (isOpen) {
+      setIframeLoading(true);
+      setIsFullscreen(false);
+      const isImg = isImageFile(doc?.fileName || doc?.name);
+      setViewMode(isImg ? 'image' : 'drive');
+    }
+  }, [isOpen, doc]);
+
+  if (!isOpen || !doc) return null;
+
+  const fileId = extractDriveFileId(doc);
+  const fileName = doc.fileName || doc.name || 'Dokumen';
+  const isImg = isImageFile(fileName);
+  const isPdf = (fileName || '').toLowerCase().endsWith('.pdf');
+
+  const previewUrl = fileId 
+    ? `https://drive.google.com/file/d/${fileId}/preview` 
+    : doc.url || '';
+  
+  const downloadUrl = fileId 
+    ? `https://drive.google.com/uc?export=download&id=${fileId}` 
+    : doc.url;
+
+  const directImageUrl = fileId
+    ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`
+    : doc.url;
+
+  return (
+    <div className={cn(
+      "fixed inset-0 z-50 transition-all duration-200 animate-in fade-in flex items-center justify-center",
+      isFullscreen ? "p-0 bg-black" : "p-3 sm:p-6 bg-black/80 backdrop-blur-md"
+    )}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        className={cn(
+          "bg-zinc-950 border border-zinc-800 text-white flex flex-col overflow-hidden shadow-2xl transition-all duration-300",
+          isFullscreen 
+            ? "w-screen h-screen rounded-none" 
+            : "w-full max-w-5xl h-[88vh] rounded-3xl"
+        )}
+      >
+        {/* Header */}
+        <div className="p-4 sm:px-6 sm:py-4 border-b border-zinc-800/80 bg-zinc-900/90 backdrop-blur flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className={cn(
+              "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
+              isPdf ? "bg-red-500/20 text-red-400 border border-red-500/30" :
+              isImg ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" :
+              "bg-yellow-400/20 text-yellow-400 border border-yellow-400/30"
+            )}>
+              <FileText size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black truncate max-w-md" title={fileName}>
+                  {fileName}
+                </h3>
+                {doc.jenisAsn && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    {doc.jenisAsn}
+                  </span>
+                )}
+                {doc.category && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">
+                    {doc.category}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                {doc.updateDate ? `Update: ${new Date(doc.updateDate).toLocaleDateString('id-ID')}` : ''}
+                {doc.uploaderName ? ` • Oleh: ${doc.uploaderName}` : ''}
+                {doc.size ? ` • Ukuran: ${doc.size}` : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {isImg && (
+              <div className="hidden sm:flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-0.5 mr-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('image')}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all",
+                    viewMode === 'image' ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"
+                  )}
+                >
+                  Gambar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('drive')}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all",
+                    viewMode === 'drive' ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"
+                  )}
+                >
+                  Viewer Drive
+                </button>
+              </div>
+            )}
+
+            {downloadUrl && (
+              <a
+                href={downloadUrl}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Unduh Berkas Ini"
+                className="flex items-center gap-1.5 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition-all border border-zinc-700 active:scale-95"
+              >
+                <Download size={14} />
+                <span className="hidden md:inline">Unduh</span>
+              </a>
+            )}
+
+            {doc.url && (
+              <a
+                href={doc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Buka Langsung di Google Drive"
+                className="flex items-center gap-1.5 px-3 py-2 bg-yellow-400 hover:bg-yellow-500 text-black rounded-xl text-xs font-black transition-all shadow-sm active:scale-95"
+              >
+                <ExternalLink size={14} />
+                <span className="hidden md:inline">Buka Drive</span>
+              </a>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(prev => !prev)}
+              title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+              className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-400 hover:text-white transition-colors"
+            >
+              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              title="Tutup Pratinjau"
+              className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-400 hover:text-white transition-colors ml-1"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="relative flex-1 bg-zinc-900/60 w-full overflow-hidden flex items-center justify-center">
+          {viewMode === 'image' && directImageUrl ? (
+            <div className="w-full h-full p-4 flex items-center justify-center overflow-auto bg-black/40">
+              <img
+                src={directImageUrl}
+                alt={fileName}
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                onLoad={() => setIframeLoading(false)}
+              />
+            </div>
+          ) : previewUrl ? (
+            <div className="relative w-full h-full">
+              {iframeLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm z-10 text-white gap-3">
+                  <div className="w-8 h-8 border-3 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs font-bold text-zinc-300 tracking-wide">
+                    Menghubungkan ke Google Drive Viewer...
+                  </span>
+                </div>
+              )}
+              <iframe
+                src={previewUrl}
+                title={fileName}
+                className="w-full h-full border-0 bg-zinc-900"
+                allow="autoplay"
+                onLoad={() => setIframeLoading(false)}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-zinc-400">
+              <AlertTriangle size={32} className="text-amber-400" />
+              <p className="text-sm font-bold text-white">Tautan pratinjau tidak tersedia untuk dokumen ini.</p>
+              <p className="text-xs text-zinc-400 max-w-sm">
+                File mungkin belum disinkronkan sepenuhnya ke Google Drive atau hak akses perlu diperiksa.
+              </p>
+              {doc.url && (
+                <a
+                  href={doc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 px-4 py-2 bg-yellow-400 text-black font-black text-xs rounded-xl hover:bg-yellow-500 transition-all flex items-center gap-2"
+                >
+                  <ExternalLink size={14} /> Buka di Tab Baru
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer info bar */}
+        <div className="px-6 py-2.5 bg-zinc-950 border-t border-zinc-900 flex items-center justify-between text-[11px] text-zinc-500 shrink-0">
+          <div className="flex items-center gap-4">
+            <span>Bidang: <strong className="text-zinc-300 font-semibold">{doc.category || 'BKPSDM'}</strong></span>
+            {doc.activityCode && <span>Kode: <strong className="text-zinc-300 font-semibold">{doc.activityCode}</strong></span>}
+            {doc.archiveType && <span>Jenis: <strong className="text-zinc-300 font-semibold">{doc.archiveType}</strong></span>}
+          </div>
+          <div className="flex items-center gap-2 text-zinc-400">
+            <span>Pratinjau Dokumen Cloud-P</span>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }: { user: any, userData: any, googleAccessToken: string | null, setGoogleAccessToken: (token: string | null) => void }) => {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1105,11 +1902,70 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [driveQuota, setDriveQuota] = useState<DriveQuotaDetails | null>(null);
+  const [isCheckingQuota, setIsCheckingQuota] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<'shared' | 'my_drive'>('shared');
+  const [folderUrls, setFolderUrls] = useState<Record<string, string>>(getStoredDriveFolders);
+  const [isAuthExpired, setIsAuthExpired] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<DocumentPreviewItem | null>(null);
+
+  // Advanced Filter & Search States
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterJenisAsn, setFilterJenisAsn] = useState<string>('all');
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
+  const [filterYear, setFilterYear] = useState<string>('all');
+  const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState<boolean>(false);
+
   const [chartData, setChartData] = useState<any[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
   const COLORS = ['#000000', '#FACC15', '#71717A', '#A1A1AA'];
 
+  const categories = [
+    { name: 'Pengadaan Pegawai', icon: Users, url: folderUrls['Pengadaan Pegawai'] || DEFAULT_DRIVE_FOLDERS['Pengadaan Pegawai'] },
+    { name: 'Informasi Kepegawaiaan', icon: FileText, url: folderUrls['Informasi Kepegawaiaan'] || DEFAULT_DRIVE_FOLDERS['Informasi Kepegawaiaan'] },
+    { name: 'Kinerja Pegawai', icon: BarChart3, url: folderUrls['Kinerja Pegawai'] || DEFAULT_DRIVE_FOLDERS['Kinerja Pegawai'] },
+  ];
+
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
+
+  const checkQuota = async (token?: string | null) => {
+    const activeToken = token || googleAccessToken;
+    if (!activeToken) return;
+    setIsCheckingQuota(true);
+    try {
+      const quota = await fetchDriveStorageQuota(activeToken);
+      if (quota) {
+        setDriveQuota(quota);
+        setIsAuthExpired(false);
+        if (quota.isExceeded) {
+          setIsQuotaExceeded(true);
+        }
+      }
+    } catch (err: any) {
+      if (err?.message === 'TOKEN_EXPIRED_401') {
+        console.warn('Google Drive token expired (HTTP 401). Resetting token.');
+        setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        setDriveQuota(null);
+        setIsAuthExpired(true);
+      }
+    } finally {
+      setIsCheckingQuota(false);
+    }
+  };
+
+  useEffect(() => {
+    if (googleAccessToken) {
+      checkQuota(googleAccessToken);
+    } else {
+      setDriveQuota(null);
+      setIsQuotaExceeded(false);
+    }
+  }, [googleAccessToken]);
 
   useEffect(() => {
     const q = query(collection(db, 'documents'), orderBy('createdAt', 'desc'));
@@ -1142,13 +1998,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       value: documents.filter(doc => doc.category === cat.name).length
     }));
     setPieData(categoriesData);
-  }, [documents]);
-
-  const categories = [
-    { name: 'Pengadaan Pegawai', icon: Users, url: 'https://drive.google.com/drive/folders/1p-TyEk9e1w-lAzrJOdIamGxWWAsw_fsl?usp=drive_link' },
-    { name: 'Informasi Kepegawaiaan', icon: FileText, url: 'https://drive.google.com/drive/folders/1DXI4hiGoYkbuHEZ-JBkxTlXcAL8HycBw?usp=drive_link' },
-    { name: 'Kinerja Pegawai', icon: BarChart3, url: 'https://drive.google.com/drive/folders/1m2ftZNc1jy9EnSVICg7fCpk-vK5LOdma?usp=drive_link' },
-  ];
+  }, [documents, folderUrls]);
 
   const ACTIVITY_ABBREVIATIONS: Record<string, string> = {
     'Pengadaan Pegawai': 'PGDN',
@@ -1174,6 +2024,11 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         },
         body: JSON.stringify({ name: newName }),
       });
+      if (response.status === 401) {
+        setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        setIsAuthExpired(true);
+      }
       return response.ok;
     } catch (error) {
       console.error('Error renaming Drive file:', error);
@@ -1186,19 +2041,30 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     return match ? match[1] : null;
   };
 
-  const handleConnectDrive = async () => {
+  const handleConnectDrive = async (forceSelectAccount = false): Promise<string | null> => {
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope('https://www.googleapis.com/auth/drive');
+      if (forceSelectAccount) {
+        provider.setCustomParameters({ prompt: 'select_account' });
+      }
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
       if (token) {
         setGoogleAccessToken(token);
+        sessionStorage.setItem('google_drive_token', token);
+        setIsAuthExpired(false);
+        setErrorMessage(null);
+        if (uploadStatus === 'error') setUploadStatus('idle');
+        await checkQuota(token);
+        return token;
       }
+      return null;
     } catch (error) {
       console.error('Error connecting to Drive:', error);
       alert('Gagal menghubungkan ke Google Drive.');
+      return null;
     }
   };
 
@@ -1212,7 +2078,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     formData.append('file', file);
 
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -1221,53 +2087,160 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       if (response.status === 401) {
-        throw new Error('Sesi Google Drive telah berakhir. Silakan hubungkan ulang di menu Pengaturan.');
+        throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
       }
-      throw new Error(errorData.error?.message || 'Gagal mengunggah ke Google Drive');
+      const errMsg = errorData.error?.message || 'Gagal mengunggah ke Google Drive';
+      const reason = errorData.error?.errors?.[0]?.reason || '';
+      if (
+        reason === 'storageQuotaExceeded' || 
+        errMsg.toLowerCase().includes('storage quota') || 
+        errMsg.toLowerCase().includes('quota has been exceeded')
+      ) {
+        throw new Error('KUOTA_DRIVE_PENUH: Kapasitas penyimpanan Google Drive akun Anda telah habis (Storage Quota Exceeded).');
+      }
+      throw new Error(errMsg);
     }
 
     return await response.json();
   };
 
-  const handleAddDocument = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveWithoutDriveUpload = async () => {
+    if (files.length === 0 && !newDoc.name) {
+      alert('Silakan pilih file atau masukkan nama dokumen terlebih dahulu.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadStatus('saving');
+    const today = new Date().toISOString().split('T')[0];
+    const dateSuffix = formatDateForNaming(today);
+    const abrv = (ACTIVITY_ABBREVIATIONS[newDoc.category] || 'DOC').toLowerCase();
+
+    try {
+      const itemsToSave = files.length > 0 ? files : [{ name: `${newDoc.name || 'DOKUMEN'}.pdf`, size: 0 } as any];
+
+      for (let i = 0; i < itemsToSave.length; i++) {
+        const currentFile = itemsToSave[i];
+        const fileExtension = currentFile.name ? currentFile.name.split('.').pop() : 'pdf';
+        const rawName = itemsToSave.length > 1 ? currentFile.name.split('.')[0] : (newDoc.name || currentFile.name.split('.')[0]);
+        
+        let customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${dateSuffix}.${fileExtension}`;
+        if (newDoc.category === 'Informasi Kepegawaiaan') {
+          customFileName = `${newDoc.year}_${abrv}_${newDoc.activityCode}_${rawName}_${newDoc.jenisAsn}_${dateSuffix}.${fileExtension}`;
+        }
+        const fileSize = currentFile.size > 0 ? (currentFile.size / (1024 * 1024)).toFixed(2) + ' MB' : (newDoc.size || '0 MB');
+
+        await addDoc(collection(db, 'documents'), {
+          ...newDoc,
+          name: itemsToSave.length > 1 ? currentFile.name.split('.')[0].toUpperCase() : (newDoc.name || rawName).toUpperCase(),
+          updateDate: today,
+          fileName: customFileName,
+          driveFileId: null,
+          url: '',
+          storageStatus: 'quota_exceeded',
+          size: fileSize,
+          customFolderName: newDoc.customFolderName || '',
+          createdAt: new Date().toISOString(),
+          uploadedBy: user.uid,
+          uploaderName: user.displayName || user.email || 'Pengguna',
+          note: 'Tersimpan di Cloud-P (Pengunggahan Google Drive ditangguhkan karena kuota penyimpanan Drive penuh).'
+        });
+      }
+
+      setUploadStatus('success');
+      setSyncStatus({ 
+        message: `${itemsToSave.length} data dokumen berhasil dicatat di sistem Cloud-P!`, 
+        type: 'success' 
+      });
+      setTimeout(() => setSyncStatus(null), 4000);
+
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setUploadStatus('idle');
+        setFiles([]);
+        setNewDoc({ 
+          name: '', 
+          category: viewState.category || 'Pengadaan Pegawai', 
+          activityCode: viewState.activity || '01',
+          month: MONTHS[new Date().getMonth()],
+          year: viewState.year || new Date().getFullYear().toString(),
+          updateDate: new Date().toISOString().split('T')[0],
+          size: '',
+          jenisAsn: 'PNS',
+          useCustomFolder: false,
+          customFolderName: ''
+        });
+        setUploadProgress(0);
+        setIsQuotaExceeded(false);
+        setErrorMessage(null);
+      }, 1500);
+    } catch (err: any) {
+      console.error('Error in handleSaveWithoutDriveUpload:', err);
+      setUploadStatus('error');
+      setErrorMessage('Gagal menyimpan ke database: ' + (err.message || ''));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddDocument = async (e?: React.FormEvent, overrideTarget?: 'shared' | 'my_drive') => {
+    if (e) e.preventDefault();
     if (files.length === 0) {
       alert('Silakan pilih file terlebih dahulu.');
       return;
     }
 
-    if (!googleAccessToken) {
-      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
-      return;
+    let activeToken = googleAccessToken;
+    if (!activeToken) {
+      activeToken = await handleConnectDrive(false);
+      if (!activeToken) {
+        setErrorMessage('Silakan hubungkan ke Google Drive terlebih dahulu.');
+        setUploadStatus('error');
+        return;
+      }
+    }
+
+    const currentTarget = overrideTarget || uploadTarget;
+    if (overrideTarget) {
+      setUploadTarget(overrideTarget);
     }
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    setIsQuotaExceeded(false);
+    setIsAuthExpired(false);
     const today = new Date().toISOString().split('T')[0];
     const dateSuffix = formatDateForNaming(today);
     const abrv = (ACTIVITY_ABBREVIATIONS[newDoc.category] || 'DOC').toLowerCase();
 
-    const categoryObj = categories.find(c => c.name === newDoc.category);
-    const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
-
-    if (!rootFolderId) {
-      setIsSubmitting(false);
-      alert('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
-      return;
-    }
-
     try {
       setSyncStatus({ message: 'Menyiapkan folder di Google Drive...', type: 'info' });
+
+      let rootFolderId: string | null = null;
+      if (currentTarget === 'my_drive') {
+        setSyncStatus({ message: 'Menyiapkan folder Cloud-P di My Drive pribadi...', type: 'info' });
+        const baseAppFolder = await getOrCreateFolder('Cloud-P Dokumen', 'root', activeToken);
+        rootFolderId = await getOrCreateFolder(newDoc.category, baseAppFolder, activeToken);
+      } else {
+        const categoryObj = categories.find(c => c.name === newDoc.category);
+        rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
+      }
+
+      if (!rootFolderId) {
+        setIsSubmitting(false);
+        alert('ID Folder Google Drive tidak ditemukan untuk kategori ini.');
+        return;
+      }
 
       // 1. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
       const activityObj = ACTIVITY_CODES[newDoc.category]?.find(a => a.code === newDoc.activityCode);
       const activityFolderName = activityObj ? `${activityObj.code}_${activityObj.label}` : newDoc.activityCode;
-      const activityFolderId = await getOrCreateFolder(activityFolderName, rootFolderId, googleAccessToken);
+      const activityFolderId = await getOrCreateFolder(activityFolderName, rootFolderId, activeToken);
 
       // 2. Get or create Year folder (e.g., "2026")
-      const yearFolderId = await getOrCreateFolder(newDoc.year, activityFolderId, googleAccessToken);
+      const yearFolderId = await getOrCreateFolder(newDoc.year, activityFolderId, activeToken);
 
       // 3. Get or create Final folder
       let finalFolderId = yearFolderId;
@@ -1275,18 +2248,18 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
       if (newDoc.category === 'Pengadaan Pegawai') {
         if (newDoc.useCustomFolder && newDoc.customFolderName) {
-          finalFolderId = await getOrCreateFolder(newDoc.customFolderName, yearFolderId, googleAccessToken);
+          finalFolderId = await getOrCreateFolder(newDoc.customFolderName, yearFolderId, activeToken);
           effectiveFolderName = newDoc.customFolderName;
         }
       } else {
-        finalFolderId = await getOrCreateFolder(newDoc.month, yearFolderId, googleAccessToken);
+        finalFolderId = await getOrCreateFolder(newDoc.month, yearFolderId, activeToken);
         effectiveFolderName = newDoc.month;
       }
 
       // If multiple files, create a grouping subfolder as requested by user ("nama folder")
       if (files.length > 1) {
         setSyncStatus({ message: `Membuat folder kelompok: ${newDoc.name}...`, type: 'info' });
-        finalFolderId = await getOrCreateFolder(newDoc.name.toUpperCase(), finalFolderId, googleAccessToken);
+        finalFolderId = await getOrCreateFolder(newDoc.name.toUpperCase(), finalFolderId, activeToken);
         effectiveFolderName = newDoc.name.toUpperCase();
       }
 
@@ -1311,7 +2284,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
         }, 300);
 
-        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, finalFolderId, googleAccessToken);
+        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, finalFolderId, activeToken);
         
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -1358,17 +2331,40 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           customFolderName: ''
         });
         setUploadProgress(0);
+        setIsQuotaExceeded(false);
       }, 1500);
     } catch (error: any) {
       console.error('Error in handleAddDocument:', error);
       setUploadStatus('error');
-      let msg = error.message;
-      if (msg.includes('insufficient permissions')) {
+      let msg = error.message || '';
+      const isQuota = 
+        msg.includes('KUOTA_DRIVE_PENUH') || 
+        msg.toLowerCase().includes('storage quota') || 
+        msg.toLowerCase().includes('quota has been exceeded') ||
+        msg.toLowerCase().includes('storagequotaexceeded');
+
+      const isAuthError = 
+        msg.includes('SESI_DRIVE_BERAKHIR') ||
+        msg.includes('401') ||
+        msg.toLowerCase().includes('unauthenticated') ||
+        msg.toLowerCase().includes('invalid credentials') ||
+        msg.toLowerCase().includes('invalid authentication credentials') ||
+        msg.includes('Sesi Google Drive telah berakhir');
+
+      if (isAuthError) {
+        setIsAuthExpired(true);
+        setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        msg = 'Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda di bawah ini.';
+      } else if (isQuota) {
+        setIsQuotaExceeded(true);
+        msg = 'Kapasitas penyimpanan Google Drive Anda telah penuh (Storage Quota Exceeded).';
+        checkQuota();
+      } else if (msg.includes('insufficient permissions')) {
         msg = 'Izin Ditolak: Pastikan Anda memiliki akses tulis ke folder Google Drive tujuan.';
       }
       setErrorMessage(msg);
       setSyncStatus({ message: 'Gagal mengunggah: ' + msg, type: 'error' });
-      if (msg.includes('Sesi Google Drive telah berakhir')) setGoogleAccessToken(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -1456,8 +2452,14 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       setTimeout(() => setSyncStatus(null), 5000);
     } catch (error: any) {
       console.error('Sync Error:', error);
-      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+      if (
+        error.message?.includes('SESI_DRIVE_BERAKHIR') ||
+        error.message?.includes('401') ||
+        error.message?.includes('Sesi Google Drive telah berakhir')
+      ) {
         setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        setIsAuthExpired(true);
       }
       setSyncStatus({ message: 'Terjadi kesalahan saat sinkronisasi: ' + error.message, type: 'error' });
     } finally {
@@ -1500,8 +2502,14 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       setTimeout(() => setSyncStatus(null), 5000);
     } catch (error: any) {
       console.error('Cleanup Error:', error);
-      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+      if (
+        error.message?.includes('SESI_DRIVE_BERAKHIR') ||
+        error.message?.includes('401') ||
+        error.message?.includes('Sesi Google Drive telah berakhir')
+      ) {
         setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        setIsAuthExpired(true);
       }
       setSyncStatus({ message: 'Terjadi kesalahan saat pembersihan: ' + error.message, type: 'error' });
     } finally {
@@ -1509,10 +2517,149 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
     }
   };
 
-  const filteredDocs = documents.filter(doc => 
-    doc.name.toLowerCase().includes(search.toLowerCase()) ||
-    doc.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const getDocJenisAsn = (doc: any): string | null => {
+    if (doc.jenisAsn && doc.jenisAsn.trim()) return doc.jenisAsn.trim();
+    const text = `${doc.fileName || ''} ${doc.name || ''}`.toUpperCase();
+    if (text.includes('PPPK PARUH WAKTU') || text.includes('PARUH WAKTU')) return 'PPPK Paruh Waktu';
+    if (text.includes('PPPK') || text.includes('P3K')) return 'PPPK';
+    if (text.includes('PNS') || text.includes('CPNS')) return 'PNS';
+    return null;
+  };
+
+  const getDocDateString = (doc: any): string | null => {
+    if (doc.updateDate) return doc.updateDate;
+    if (doc.createdAt) {
+      if (typeof doc.createdAt === 'string') return doc.createdAt.split('T')[0];
+      if (doc.createdAt.toDate) {
+        try {
+          return doc.createdAt.toDate().toISOString().split('T')[0];
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return null;
+  };
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    const currentYear = new Date().getFullYear().toString();
+    years.add(currentYear);
+    documents.forEach(d => {
+      if (d.year) years.add(d.year.toString());
+    });
+    return Array.from(years).sort().reverse();
+  }, [documents]);
+
+  const filteredDocs = useMemo(() => {
+    return documents.filter(doc => {
+      // 1. Keyword search (Name, FileName, Category, ActivityCode, Uploader, ASN, Year, Month)
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const docName = (doc.name || '').toLowerCase();
+        const fileName = (doc.fileName || '').toLowerCase();
+        const cat = (doc.category || '').toLowerCase();
+        const act = (doc.activityCode || '').toLowerCase();
+        const uploader = (doc.uploaderName || '').toLowerCase();
+        const asn = (getDocJenisAsn(doc) || '').toLowerCase();
+        const yr = (doc.year || '').toString().toLowerCase();
+        const mo = (doc.month || '').toLowerCase();
+
+        const matchesKeyword = 
+          docName.includes(q) ||
+          fileName.includes(q) ||
+          cat.includes(q) ||
+          act.includes(q) ||
+          uploader.includes(q) ||
+          asn.includes(q) ||
+          yr.includes(q) ||
+          mo.includes(q);
+
+        if (!matchesKeyword) return false;
+      }
+
+      // 2. Category Filter
+      if (filterCategory !== 'all') {
+        if (doc.category !== filterCategory) return false;
+      }
+
+      // 3. Jenis ASN Filter
+      if (filterJenisAsn !== 'all') {
+        const docAsn = getDocJenisAsn(doc);
+        if (docAsn !== filterJenisAsn) return false;
+      }
+
+      // 4. Year Filter
+      if (filterYear !== 'all') {
+        const docYr = doc.year ? doc.year.toString() : '';
+        if (docYr !== filterYear) return false;
+      }
+
+      // 5. Date Range Filter
+      if (filterStartDate || filterEndDate) {
+        const docDate = getDocDateString(doc);
+        if (!docDate) return false;
+        if (filterStartDate && docDate < filterStartDate) return false;
+        if (filterEndDate && docDate > filterEndDate) return false;
+      }
+
+      return true;
+    });
+  }, [documents, search, filterCategory, filterJenisAsn, filterYear, filterStartDate, filterEndDate]);
+
+  const activeFilterCount = useMemo(() => {
+    return (
+      (filterCategory !== 'all' ? 1 : 0) +
+      (filterJenisAsn !== 'all' ? 1 : 0) +
+      (filterYear !== 'all' ? 1 : 0) +
+      (filterStartDate ? 1 : 0) +
+      (filterEndDate ? 1 : 0)
+    );
+  }, [filterCategory, filterJenisAsn, filterYear, filterStartDate, filterEndDate]);
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setFilterCategory('all');
+    setFilterJenisAsn('all');
+    setFilterYear('all');
+    setFilterStartDate('');
+    setFilterEndDate('');
+  };
+
+  const handlePresetDateRange = (preset: 'today' | '7days' | '30days' | 'thisMonth' | 'thisYear' | 'all') => {
+    const now = new Date();
+    const toIso = (d: Date) => d.toISOString().split('T')[0];
+    const todayStr = toIso(now);
+
+    if (preset === 'all') {
+      setFilterStartDate('');
+      setFilterEndDate('');
+      return;
+    }
+
+    if (preset === 'today') {
+      setFilterStartDate(todayStr);
+      setFilterEndDate(todayStr);
+    } else if (preset === '7days') {
+      const past = new Date();
+      past.setDate(past.getDate() - 7);
+      setFilterStartDate(toIso(past));
+      setFilterEndDate(todayStr);
+    } else if (preset === '30days') {
+      const past = new Date();
+      past.setDate(past.getDate() - 30);
+      setFilterStartDate(toIso(past));
+      setFilterEndDate(todayStr);
+    } else if (preset === 'thisMonth') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setFilterStartDate(toIso(firstDay));
+      setFilterEndDate(todayStr);
+    } else if (preset === 'thisYear') {
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
+      setFilterStartDate(toIso(firstDayOfYear));
+      setFilterEndDate(todayStr);
+    }
+  };
 
   const getCategoryCount = (catName: string) => {
     return documents.filter(d => d.category === catName).length;
@@ -1528,7 +2675,7 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         <div className="flex items-center gap-4">
           {!googleAccessToken ? (
             <button 
-              onClick={handleConnectDrive}
+              onClick={() => handleConnectDrive(false)}
               className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-zinc-200 text-zinc-600 font-bold rounded-2xl hover:border-yellow-400 hover:text-black transition-all shadow-sm"
             >
               <div className="w-5 h-5 flex items-center justify-center">
@@ -1537,8 +2684,47 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
               HUBUNGKAN DRIVE
             </button>
           ) : (
-            <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 text-xs font-bold rounded-xl border border-green-100">
-              <CheckCircle2 size={14} /> TERHUBUNG KE DRIVE
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 text-xs font-bold rounded-xl border border-green-100">
+                <CheckCircle2 size={14} /> TERHUBUNG KE DRIVE
+              </div>
+              {driveQuota && (
+                <button
+                  type="button"
+                  onClick={() => setShowQuotaModal(true)}
+                  title="Klik untuk melihat rincian kapasitas & ganti akun Google Drive"
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl border transition-all hover:scale-105 active:scale-95",
+                    driveQuota.isExceeded 
+                      ? "bg-red-50 text-red-700 border-red-200" 
+                      : driveQuota.percentUsed > 85 
+                        ? "bg-amber-50 text-amber-800 border-amber-200" 
+                        : "bg-zinc-50 text-zinc-600 border-zinc-200"
+                  )}
+                >
+                  <HardDrive size={14} className={driveQuota.isExceeded ? "text-red-600 animate-pulse" : "text-zinc-500"} />
+                  <span>
+                    Drive: <strong className={driveQuota.isExceeded ? "text-red-700 font-black" : ""}>{driveQuota.usageFormatted} / {driveQuota.limitFormatted}</strong>
+                  </span>
+                  {driveQuota.isExceeded ? (
+                    <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-wider">
+                      PENUH
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-zinc-400">({driveQuota.percentUsed}%)</span>
+                  )}
+                  <Info size={12} className="text-zinc-400" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                title="Beralih Penyimpanan atau Pengaturan Folder Google Drive"
+                className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-yellow-400 hover:text-black text-zinc-700 text-xs font-bold rounded-xl border border-zinc-200 transition-all shadow-sm active:scale-95"
+              >
+                <Settings size={14} />
+                <span className="hidden sm:inline">Beralih / Atur Drive</span>
+              </button>
             </div>
           )}
           {isAuthorized && (
@@ -1607,18 +2793,24 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                 </button>
               </div>
               <form onSubmit={handleAddDocument} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                {!googleAccessToken && (
+                {(!googleAccessToken || isAuthExpired) && (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
                     <Info className="text-amber-500 shrink-0 mt-0.5" size={18} />
                     <div className="space-y-1">
-                      <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Drive Belum Terhubung</p>
-                      <p className="text-[10px] text-amber-700 leading-relaxed">Anda harus menghubungkan akun ke Google Drive sebelum dapat mengunggah dokumen.</p>
+                      <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                        {isAuthExpired ? 'Sesi Google Drive Berakhir (HTTP 401)' : 'Drive Belum Terhubung'}
+                      </p>
+                      <p className="text-[10px] text-amber-700 leading-relaxed">
+                        {isAuthExpired 
+                          ? 'Token otentikasi Google Drive Anda telah kedaluwarsa. Silakan klik Hubungkan Sekarang untuk memperbarui sesi login.'
+                          : 'Anda harus menghubungkan akun ke Google Drive sebelum dapat mengunggah dokumen.'}
+                      </p>
                       <button 
                         type="button"
-                        onClick={handleConnectDrive}
-                        className="text-[10px] font-black text-amber-900 underline underline-offset-2 hover:text-amber-600"
+                        onClick={() => handleConnectDrive(false)}
+                        className="text-[10px] font-black text-amber-900 underline underline-offset-2 hover:text-amber-600 flex items-center gap-1 mt-1"
                       >
-                        HUBUNGKAN SEKARANG
+                        <RefreshCw size={12} /> HUBUNGKAN SEKARANG
                       </button>
                     </div>
                   </div>
@@ -1838,6 +3030,47 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                       </span>
                     </label>
                   </div>
+
+                  {/* Target Folder Selector */}
+                  <div className="pt-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tujuan Penyimpanan Drive</label>
+                      <span className="text-[10px] text-zinc-500 font-medium">
+                        {uploadTarget === 'shared' ? 'Folder Bersama Kategori' : 'My Drive Akun Pribadi'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setUploadTarget('shared')}
+                        className={cn(
+                          "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                          uploadTarget === 'shared' 
+                            ? "bg-black text-white border-black shadow-sm" 
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                        )}
+                      >
+                        <FolderOpen size={14} /> Folder Kategori
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadTarget('my_drive')}
+                        className={cn(
+                          "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                          uploadTarget === 'my_drive' 
+                            ? "bg-black text-white border-black shadow-sm" 
+                            : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                        )}
+                      >
+                        <HardDrive size={14} /> My Drive Pribadi
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-zinc-400">
+                      {uploadTarget === 'shared' 
+                        ? 'Tersimpan di folder kategori Cloud-P. Jika kuota pemilik folder penuh, gunakan opsi "My Drive Pribadi".' 
+                        : 'Tersimpan otomatis di folder "Cloud-P Dokumen" di Google Drive pribadi Anda.'}
+                    </p>
+                  </div>
                   
                   {isSubmitting && (
                     <div className="mt-4 space-y-2">
@@ -1846,8 +3079,8 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                           "transition-colors",
                           uploadStatus === 'error' ? "text-red-500" : "text-zinc-500"
                         )}>
-                          {uploadStatus === 'uploading' ? `Mengunggah... ${uploadProgress}%` : 
-                           uploadStatus === 'saving' ? 'Menyimpan Data...' : 
+                          {uploadStatus === 'uploading' ? `Mengunggah ke Drive... ${uploadProgress}%` : 
+                           uploadStatus === 'saving' ? 'Menyimpan Data ke Sistem...' : 
                            uploadStatus === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan'}
                         </span>
                         <span className="text-yellow-600">{uploadProgress}%</span>
@@ -1863,11 +3096,130 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                           )}
                         />
                       </div>
-                      {uploadStatus === 'error' && (
-                        <p className="text-[10px] text-red-500 font-bold mt-1">
-                          {errorMessage || 'Gagal mengunggah. Coba lagi atau hubungi admin.'}
+                    </div>
+                  )}
+
+                  {isAuthExpired && (
+                    <div className="p-4 bg-amber-50/95 border-2 border-amber-300 rounded-2xl space-y-3 mt-3 animate-in fade-in duration-300">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={22} />
+                        <div className="space-y-1 text-left flex-1">
+                          <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                            Sesi Google Drive Berakhir (HTTP 401)
+                          </h4>
+                          <p className="text-xs text-amber-900/90 leading-relaxed">
+                            Token otorisasi Google Drive Anda telah berakhir demi keamanan. Silakan klik tombol di bawah ini untuk menghubungkan ulang akun Anda. File dan data yang telah Anda pilih tidak akan hilang.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const token = await handleConnectDrive(false);
+                          if (token) {
+                            setIsAuthExpired(false);
+                            setErrorMessage(null);
+                            setUploadStatus('idle');
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-yellow-400 hover:bg-yellow-500 text-black font-black rounded-xl text-xs tracking-wider transition-all shadow-md active:scale-95"
+                      >
+                        <RefreshCw size={15} /> HUBUNGKAN ULANG GOOGLE DRIVE SEKARANG
+                      </button>
+                    </div>
+                  )}
+
+                  {uploadStatus === 'error' && errorMessage && !isQuotaExceeded && !isAuthExpired && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-bold flex items-center gap-2">
+                      <AlertTriangle size={16} className="shrink-0" />
+                      <span>{errorMessage}</span>
+                    </div>
+                  )}
+
+                  {isQuotaExceeded && (
+                    <div className="p-4 bg-amber-50/95 border-2 border-amber-300 rounded-2xl space-y-3.5 mt-3 animate-in fade-in duration-300">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={22} />
+                        <div className="space-y-1.5 text-left flex-1">
+                          <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                            Penyimpanan Google Penuh (Storage Quota Exceeded)
+                          </h4>
+                          <p className="text-xs text-amber-900/90 leading-relaxed">
+                            Google API menolak penambahan file/folder baru karena kapasitas akun Google telah mencapai batas maksimal (15 GB).
+                          </p>
+
+                          {driveQuota && (
+                            <div className="p-3 bg-white/95 rounded-xl border border-amber-200 text-xs text-zinc-700 space-y-2 mt-1 shadow-sm">
+                              <div className="flex justify-between items-center text-[11px] pb-1 border-b border-zinc-100">
+                                <span className="text-zinc-500 font-medium">Akun Google:</span>
+                                <span className="font-bold text-zinc-800 truncate max-w-[180px]">{driveQuota.userEmail}</span>
+                              </div>
+                              <div className="flex justify-between font-bold">
+                                <span>Total Akun Google (Drive+Gmail+Foto):</span>
+                                <span className="text-red-600 font-black">{driveQuota.usageFormatted} / {driveQuota.limitFormatted}</span>
+                              </div>
+                              <div className="flex justify-between text-[11px] text-zinc-600">
+                                <span>Khusus File Google Drive:</span>
+                                <span className="font-bold text-zinc-800">{driveQuota.usageInDriveFormatted}</span>
+                              </div>
+                              {driveQuota.usageInDriveTrash > 0 && (
+                                <div className="flex justify-between text-[11px] text-amber-800">
+                                  <span>Sampah di Drive (Trash):</span>
+                                  <span className="font-bold">{driveQuota.trashFormatted} (bisa dikosongkan)</span>
+                                </div>
+                              )}
+                              <p className="text-[10px] text-zinc-500 leading-tight pt-1 border-t border-zinc-100 italic">
+                                *Catatan: Jika file Drive Anda baru 6 GB, penyebab batas 15 GB terlampaui adalah akumulasi bersama dari Gmail (lampiran email) dan Google Photos.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-1 border-t border-amber-200">
+                        <p className="text-[11px] font-bold text-amber-900">Solusi & Tindakan Cepat:</p>
+                        
+                        {uploadTarget === 'shared' && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddDocument(undefined, 'my_drive')}
+                            disabled={isSubmitting}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-zinc-900 hover:bg-black text-white font-black rounded-xl text-xs tracking-wider transition-all shadow-md"
+                          >
+                            <HardDrive size={15} /> 1. COBA UNGGAH KE MY DRIVE PRIBADI
+                          </button>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleConnectDrive(true)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-yellow-400 hover:text-black border border-zinc-300 text-zinc-800 rounded-xl text-xs font-bold transition-all shadow-sm"
+                          >
+                            <RefreshCw size={13} /> Ganti Akun Google
+                          </button>
+                          <a 
+                            href="https://drive.google.com/drive/trash" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all text-center"
+                          >
+                            <Trash2 size={13} /> Kosongkan Sampah ↗
+                          </a>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={handleSaveWithoutDriveUpload}
+                          disabled={isSubmitting}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-xs tracking-wider transition-all shadow-md shadow-amber-500/20"
+                        >
+                          <Database size={14} /> TETAP SIMPAN DATA DOKUMEN KE CLOUD-P
+                        </button>
+                        <p className="text-[10px] text-amber-700 text-center">
+                          Data formulir tetap tersimpan aman di database Cloud-P tanpa mengunggah file fisik ke Drive.
                         </p>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1887,6 +3239,10 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                   ) : uploadStatus === 'success' ? (
                     <>
                       <CheckCircle2 size={20} /> BERHASIL DISIMPAN
+                    </>
+                  ) : uploadStatus === 'error' ? (
+                    <>
+                      <RefreshCw size={18} /> COBA UNGGAH ULANG
                     </>
                   ) : 'SIMPAN DOKUMEN'}
                 </button>
@@ -2187,9 +3543,13 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                             ) : rootDocs.map((file, i) => (
                               <tr key={i} className="hover:bg-zinc-50 transition-colors group">
                                 <td className="px-6 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <FileText size={16} className="text-zinc-400" />
-                                    <span className="text-sm font-bold">{file.fileName || file.name}</span>
+                                  <div 
+                                    className="flex items-center gap-3 cursor-pointer group/item"
+                                    onClick={() => setPreviewDoc(file)}
+                                    title="Klik untuk pratinjau isi berkas"
+                                  >
+                                    <FileText size={16} className="text-zinc-400 group-hover/item:text-yellow-600 transition-colors shrink-0" />
+                                    <span className="text-sm font-bold group-hover/item:text-yellow-600 group-hover/item:underline">{file.fileName || file.name}</span>
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-zinc-500">
@@ -2197,20 +3557,33 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                                 </td>
                                 <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                                 <td className="px-6 py-4 text-right">
-                                  <div className="flex flex-col items-end gap-1">
+                                  <div className="flex items-center justify-end gap-1.5">
                                     <button 
-                                      onClick={() => file.url && window.open(file.url, '_blank')}
-                                      className="text-xs font-black text-yellow-600 hover:underline"
-                                      disabled={!file.url}
+                                      type="button"
+                                      onClick={() => setPreviewDoc(file)}
+                                      className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
+                                      title="Pratinjau isi dokumen langsung di aplikasi"
                                     >
-                                      LIHAT FILE
+                                      <Eye size={12} />
+                                      <span>Pratinjau</span>
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={() => file.url && window.open(file.url, '_blank')}
+                                      className="p-1.5 bg-zinc-900 hover:bg-black text-white rounded-lg transition-all disabled:opacity-30"
+                                      disabled={!file.url}
+                                      title="Buka di tab baru Google Drive"
+                                    >
+                                      <ExternalLink size={12} />
                                     </button>
                                     {file.parentFolderId && (
                                       <button 
+                                        type="button"
                                         onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
-                                        className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                                        className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                                        title="Buka Folder Drive"
                                       >
-                                        BUKA FOLDER
+                                        <FolderOpen size={13} />
                                       </button>
                                     )}
                                   </div>
@@ -2298,9 +3671,13 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     .map((file, i) => (
                       <tr key={i} className="hover:bg-zinc-50 transition-colors group">
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <FileText size={16} className="text-zinc-400" />
-                            <span className="text-sm font-bold">{file.fileName || file.name}</span>
+                          <div 
+                            className="flex items-center gap-3 cursor-pointer group/item"
+                            onClick={() => setPreviewDoc(file)}
+                            title="Klik untuk pratinjau isi berkas"
+                          >
+                            <FileText size={16} className="text-zinc-400 group-hover/item:text-yellow-600 transition-colors shrink-0" />
+                            <span className="text-sm font-bold group-hover/item:text-yellow-600 group-hover/item:underline">{file.fileName || file.name}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-500">
@@ -2308,20 +3685,33 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex flex-col items-end gap-1">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button 
-                              onClick={() => file.url && window.open(file.url, '_blank')}
-                              className="text-xs font-black text-yellow-600 hover:underline"
-                              disabled={!file.url}
+                              type="button"
+                              onClick={() => setPreviewDoc(file)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
+                              title="Pratinjau isi dokumen langsung di aplikasi"
                             >
-                              LIHAT FILE
+                              <Eye size={12} />
+                              <span>Pratinjau</span>
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => file.url && window.open(file.url, '_blank')}
+                              className="p-1.5 bg-zinc-900 hover:bg-black text-white rounded-lg transition-all disabled:opacity-30"
+                              disabled={!file.url}
+                              title="Buka di tab baru Google Drive"
+                            >
+                              <ExternalLink size={12} />
                             </button>
                             {file.parentFolderId && (
                               <button 
+                                type="button"
                                 onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
-                                className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                                className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                                title="Buka Folder Drive"
                               >
-                                BUKA FOLDER
+                                <FolderOpen size={13} />
                               </button>
                             )}
                           </div>
@@ -2392,9 +3782,13 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     .map((file, i) => (
                       <tr key={i} className="hover:bg-zinc-50 transition-colors group">
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <FileText size={16} className="text-zinc-400" />
-                            <span className="text-sm font-bold">{file.fileName || file.name}</span>
+                          <div 
+                            className="flex items-center gap-3 cursor-pointer group/item"
+                            onClick={() => setPreviewDoc(file)}
+                            title="Klik untuk pratinjau isi berkas"
+                          >
+                            <FileText size={16} className="text-zinc-400 group-hover/item:text-yellow-600 transition-colors shrink-0" />
+                            <span className="text-sm font-bold group-hover/item:text-yellow-600 group-hover/item:underline">{file.fileName || file.name}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-500">
@@ -2402,20 +3796,33 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex flex-col items-end gap-1">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button 
-                              onClick={() => file.url && window.open(file.url, '_blank')}
-                              className="text-xs font-black text-yellow-600 hover:underline"
-                              disabled={!file.url}
+                              type="button"
+                              onClick={() => setPreviewDoc(file)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
+                              title="Pratinjau isi dokumen langsung di aplikasi"
                             >
-                              LIHAT FILE
+                              <Eye size={12} />
+                              <span>Pratinjau</span>
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => file.url && window.open(file.url, '_blank')}
+                              className="p-1.5 bg-zinc-900 hover:bg-black text-white rounded-lg transition-all disabled:opacity-30"
+                              disabled={!file.url}
+                              title="Buka di tab baru Google Drive"
+                            >
+                              <ExternalLink size={12} />
                             </button>
                             {file.parentFolderId && (
                               <button 
+                                type="button"
                                 onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
-                                className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                                className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                                title="Buka Folder Drive"
                               >
-                                BUKA FOLDER
+                                <FolderOpen size={13} />
                               </button>
                             )}
                           </div>
@@ -2431,71 +3838,350 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
 
       {viewState.view === 'main' && (
         <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-            <h3 className="font-bold">File Terbaru</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Tampilkan:</span>
-                <select 
-                  value={displayLimit}
-                  onChange={(e) => setDisplayLimit(Number(e.target.value))}
-                  className="bg-zinc-50 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-yellow-400"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
+          {/* Header & Advanced Search Filter Bar */}
+          <div className="p-6 border-b border-zinc-100 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-black text-black tracking-tight">Pusat Arsip Dokumen</h3>
+                  {activeFilterCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-yellow-400 text-black shadow-sm">
+                      {activeFilterCount} Filter Aktif
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Menampilkan <strong className="text-zinc-800 font-bold">{filteredDocs.length}</strong> dari <strong>{documents.length}</strong> dokumen tersimpan
+                </p>
               </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Cari dokumen..." 
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-zinc-50 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-yellow-400"
-                />
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search Box */}
+                <div className="relative flex-1 sm:w-72 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Cari nama, file, kode, pengunggah..." 
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2.5 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs font-medium focus:ring-2 focus:ring-yellow-400 focus:outline-none transition-all"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-black p-0.5"
+                      title="Hapus pencarian"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Toggle Filter Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsAdvancedFilterOpen(prev => !prev)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-95 shadow-sm",
+                    isAdvancedFilterOpen || activeFilterCount > 0
+                      ? "bg-black text-white border-black"
+                      : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                  )}
+                >
+                  <SlidersHorizontal size={14} className={isAdvancedFilterOpen ? "text-yellow-400" : ""} />
+                  <span>Filter Lanjutan</span>
+                  {activeFilterCount > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-black flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Reset Filters button if any active */}
+                {(activeFilterCount > 0 || search) && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    title="Reset semua pencarian & filter"
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-all border border-red-100"
+                  >
+                    <RotateCcw size={13} />
+                    <span className="hidden sm:inline">Reset</span>
+                  </button>
+                )}
+
+                {/* Display Limit */}
+                <div className="flex items-center gap-1.5 bg-zinc-50 px-2.5 py-1.5 rounded-xl border border-zinc-200/60">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Baris:</span>
+                  <select 
+                    value={displayLimit}
+                    onChange={(e) => setDisplayLimit(Number(e.target.value))}
+                    className="bg-transparent border-none text-xs font-bold py-0.5 px-1 focus:ring-0 text-zinc-800 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
             </div>
+
+            {/* Collapsible Advanced Filters Drawer */}
+            {isAdvancedFilterOpen && (
+              <div className="pt-4 border-t border-zinc-100 space-y-4 animate-in fade-in duration-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  {/* 1. Kategori Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                      <FolderOpen size={12} /> Kategori Dokumen
+                    </label>
+                    <select
+                      value={filterCategory}
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl font-bold text-zinc-800 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                    >
+                      <option value="all">Semua Kategori</option>
+                      <option value="Pengadaan Pegawai">Pengadaan Pegawai</option>
+                      <option value="Informasi Kepegawaiaan">Informasi Kepegawaiaan</option>
+                      <option value="Kinerja Pegawai">Kinerja Pegawai</option>
+                    </select>
+                  </div>
+
+                  {/* 2. Jenis ASN Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                      <Users size={12} /> Jenis ASN
+                    </label>
+                    <select
+                      value={filterJenisAsn}
+                      onChange={(e) => setFilterJenisAsn(e.target.value)}
+                      className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl font-bold text-zinc-800 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                    >
+                      <option value="all">Semua Jenis ASN</option>
+                      <option value="PNS">PNS (Pegawai Negeri Sipil)</option>
+                      <option value="PPPK">PPPK</option>
+                      <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
+                    </select>
+                  </div>
+
+                  {/* 3. Tahun Berkas */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                      <Clock size={12} /> Tahun Berkas
+                    </label>
+                    <select
+                      value={filterYear}
+                      onChange={(e) => setFilterYear(e.target.value)}
+                      className="w-full p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl font-bold text-zinc-800 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                    >
+                      <option value="all">Semua Tahun</option>
+                      {availableYears.map(yr => (
+                        <option key={yr} value={yr}>{yr}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 4. Rentang Tanggal Update */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                      <Calendar size={12} /> Rentang Tanggal
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="date"
+                        value={filterStartDate}
+                        onChange={(e) => setFilterStartDate(e.target.value)}
+                        placeholder="Dari"
+                        className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded-xl text-[11px] font-medium text-zinc-800 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                        title="Tanggal Mulai"
+                      />
+                      <input
+                        type="date"
+                        value={filterEndDate}
+                        onChange={(e) => setFilterEndDate(e.target.value)}
+                        placeholder="Sampai"
+                        className="w-full p-2 bg-zinc-50 border border-zinc-200 rounded-xl text-[11px] font-medium text-zinc-800 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                        title="Tanggal Akhir"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets for Date Range */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-100 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mr-1">Preset Tanggal:</span>
+                    <button
+                      type="button"
+                      onClick={() => handlePresetDateRange('today')}
+                      className="px-2.5 py-1 bg-zinc-100 hover:bg-yellow-400 hover:text-black text-zinc-700 rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      Hari Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePresetDateRange('7days')}
+                      className="px-2.5 py-1 bg-zinc-100 hover:bg-yellow-400 hover:text-black text-zinc-700 rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      7 Hari Terakhir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePresetDateRange('30days')}
+                      className="px-2.5 py-1 bg-zinc-100 hover:bg-yellow-400 hover:text-black text-zinc-700 rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      30 Hari
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePresetDateRange('thisMonth')}
+                      className="px-2.5 py-1 bg-zinc-100 hover:bg-yellow-400 hover:text-black text-zinc-700 rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      Bulan Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePresetDateRange('thisYear')}
+                      className="px-2.5 py-1 bg-zinc-100 hover:bg-yellow-400 hover:text-black text-zinc-700 rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      Tahun Ini
+                    </button>
+                    {(filterStartDate || filterEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => handlePresetDateRange('all')}
+                        className="px-2.5 py-1 text-red-500 hover:text-red-700 text-[11px] font-bold"
+                      >
+                        Hapus Tanggal
+                      </button>
+                    )}
+                  </div>
+
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="text-xs text-red-600 hover:underline font-bold flex items-center gap-1"
+                    >
+                      <RotateCcw size={12} /> Bersihkan Semua Filter
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Active Filters Badges Bar */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Filter Aktif:</span>
+                {filterCategory !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-zinc-900 text-white shadow-sm">
+                    Kategori: {filterCategory}
+                    <button onClick={() => setFilterCategory('all')} className="hover:text-yellow-400">
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+                {filterJenisAsn !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-600 text-white shadow-sm">
+                    ASN: {filterJenisAsn}
+                    <button onClick={() => setFilterJenisAsn('all')} className="hover:text-yellow-300">
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+                {filterYear !== 'all' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-zinc-800 text-white shadow-sm">
+                    Tahun: {filterYear}
+                    <button onClick={() => setFilterYear('all')} className="hover:text-yellow-400">
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+                {(filterStartDate || filterEndDate) && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-700 text-white shadow-sm">
+                    Rentang: {filterStartDate || 'Awal'} s/d {filterEndDate || 'Kini'}
+                    <button onClick={() => { setFilterStartDate(''); setFilterEndDate(''); }} className="hover:text-yellow-300">
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="text-[11px] font-bold text-red-600 hover:underline ml-1"
+                >
+                  Reset Semua
+                </button>
+              </div>
+            )}
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
                 <tr>
                   <th className="px-6 py-4">Nama File / Deskripsi</th>
                   <th className="px-6 py-4">Kategori (Kode)</th>
+                  <th className="px-6 py-4">Jenis ASN</th>
                   <th className="px-6 py-4">Bulan/Tahun</th>
-                  <th className="px-6 py-4">Update</th>
+                  <th className="px-6 py-4">Tanggal Update</th>
                   <th className="px-6 py-4">Oleh</th>
-                  <th className="px-6 py-4">Aksi</th>
+                  <th className="px-6 py-4 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                      <td colSpan={6} className="px-6 py-4 h-16 bg-zinc-50/50" />
+                      <td colSpan={7} className="px-6 py-4 h-16 bg-zinc-50/50" />
                     </tr>
                   ))
                 ) : filteredDocs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-zinc-400 text-sm">
-                      Belum ada dokumen yang diunggah.
+                    <td colSpan={7} className="px-6 py-14 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-400">
+                          <Search size={22} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-zinc-800">
+                            Tidak ada dokumen yang cocok dengan kriteria filter
+                          </p>
+                          <p className="text-xs text-zinc-400">
+                            Coba ubah kata kunci pencarian, kategori, jenis ASN, atau rentang tanggal.
+                          </p>
+                        </div>
+                        {(activeFilterCount > 0 || search) && (
+                          <button
+                            type="button"
+                            onClick={handleResetFilters}
+                            className="px-4 py-2 bg-black text-white rounded-xl text-xs font-bold hover:bg-zinc-800 transition-all flex items-center gap-1.5 mt-2 shadow-sm"
+                          >
+                            <RotateCcw size={12} /> Reset Semua Filter
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ) : filteredDocs.slice(0, displayLimit).map((file, i) => (
                   <tr key={i} className="hover:bg-zinc-50 transition-colors group">
                     <td className="px-6 py-4 font-medium">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center text-zinc-400 group-hover:bg-yellow-100 group-hover:text-yellow-600">
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer group/title"
+                        onClick={() => setPreviewDoc(file)}
+                        title="Klik untuk pratinjau isi dokumen"
+                      >
+                        <div className="w-8 h-8 bg-zinc-100 rounded flex items-center justify-center text-zinc-400 group-hover/title:bg-yellow-100 group-hover/title:text-yellow-600 transition-colors shrink-0">
                           <FileText size={16} />
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm text-black font-bold truncate max-w-[200px]" title={file.fileName || file.name}>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm text-black font-bold truncate max-w-[240px] group-hover/title:text-yellow-600 group-hover/title:underline" title={file.fileName || file.name}>
                             {file.fileName || file.name}
                           </span>
-                          <span className="text-[10px] text-zinc-400 uppercase tracking-tight">
+                          <span className="text-[10px] text-zinc-400 uppercase tracking-tight truncate max-w-[240px]">
                             {file.name}
                           </span>
                         </div>
@@ -2503,34 +4189,72 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm text-zinc-600">{file.category}</span>
-                        <span className="text-[10px] font-bold text-yellow-600 bg-yellow-50 px-1.5 py-0.5 rounded w-fit">
+                        <span className="text-xs font-bold text-zinc-700">{file.category}</span>
+                        <span className="text-[10px] font-bold text-yellow-700 bg-yellow-50 border border-yellow-200/60 px-1.5 py-0.5 rounded w-fit mt-0.5">
                           KODE: {file.activityCode}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-zinc-500 font-bold">
+                    <td className="px-6 py-4">
+                      {(() => {
+                        const asn = getDocJenisAsn(file);
+                        if (!asn) return <span className="text-zinc-300 text-xs font-medium">-</span>;
+                        if (asn === 'PNS') {
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
+                              PNS
+                            </span>
+                          );
+                        }
+                        if (asn === 'PPPK Paruh Waktu') {
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                              PPPK Paruh Waktu
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-purple-50 text-purple-700 border border-purple-200">
+                            {asn}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-zinc-600 font-bold whitespace-nowrap">
                       {file.month || monthNameFallback(file.customFolderName) ? `${file.month || monthNameFallback(file.customFolderName)} ` : ''}{file.year}
                     </td>
-                    <td className="px-6 py-4 text-sm text-zinc-500">
-                      {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID') : '-'}
+                    <td className="px-6 py-4 text-xs text-zinc-500 whitespace-nowrap">
+                      {file.updateDate ? new Date(file.updateDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-zinc-500">{file.uploaderName || 'Sistem'}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col items-start gap-1">
+                    <td className="px-6 py-4 text-xs text-zinc-500 whitespace-nowrap">{file.uploaderName || 'Sistem'}</td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button 
-                          onClick={() => file.url && window.open(file.url, '_blank')}
-                          className="px-4 py-2 bg-black text-white text-[10px] font-black rounded-lg hover:bg-zinc-800 transition-all uppercase tracking-widest disabled:opacity-30"
-                          disabled={!file.url}
+                          type="button"
+                          onClick={() => setPreviewDoc(file)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
+                          title="Pratinjau isi dokumen langsung di dalam aplikasi"
                         >
-                          Buka File
+                          <Eye size={12} />
+                          <span>Pratinjau</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => file.url && window.open(file.url, '_blank')}
+                          className="px-2.5 py-1.5 bg-zinc-900 hover:bg-black text-white text-[10px] font-bold rounded-lg transition-all disabled:opacity-30"
+                          disabled={!file.url}
+                          title="Buka langsung di Google Drive"
+                        >
+                          <ExternalLink size={12} />
                         </button>
                         {file.parentFolderId && (
                           <button 
+                            type="button"
                             onClick={() => window.open(`https://drive.google.com/drive/folders/${file.parentFolderId}`, '_blank')}
-                            className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                            className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                            title="Buka Folder Drive"
                           >
-                            BUKA FOLDER
+                            <FolderOpen size={13} />
                           </button>
                         )}
                       </div>
@@ -2542,6 +4266,34 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
           </div>
         </div>
       )}
+
+      {/* Modal Pratinjau Dokumen */}
+      <DocumentPreviewModal
+        isOpen={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        document={previewDoc}
+      />
+
+      {/* Modal Rincian Kuota & Ganti Akun Google Drive */}
+      <DriveQuotaModal
+        isOpen={showQuotaModal}
+        onClose={() => setShowQuotaModal(false)}
+        quota={driveQuota}
+        onRefresh={() => checkQuota()}
+        isRefreshing={isCheckingQuota}
+        onSwitchAccount={() => handleConnectDrive(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
+      />
+
+      {/* Modal Pengaturan & Pengalihan Folder Google Drive */}
+      <DriveSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        quota={driveQuota}
+        onSwitchAccount={() => handleConnectDrive(true)}
+        folderUrls={folderUrls}
+        onUpdateFolderUrls={(newUrls) => setFolderUrls(newUrls)}
+      />
     </div>
   );
 };
@@ -2550,6 +4302,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   const [archives, setArchives] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [previewDoc, setPreviewDoc] = useState<DocumentPreviewItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newArchive, setNewArchive] = useState({ 
     name: '', 
@@ -2565,12 +4318,55 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [driveQuota, setDriveQuota] = useState<DriveQuotaDetails | null>(null);
+  const [isCheckingQuota, setIsCheckingQuota] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<'shared' | 'my_drive'>('shared');
+  const [folderUrls, setFolderUrls] = useState<Record<string, string>>(getStoredDriveFolders);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [displayLimit, setDisplayLimit] = useState(10);
   const [syncStatus, setSyncStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isAuthExpired, setIsAuthExpired] = useState(false);
 
   const isAuthorized = userData?.status === 'authorized' || user?.email === 'saininda@gmail.com';
+
+  const checkQuota = async (token?: string | null) => {
+    const activeToken = token || googleAccessToken;
+    if (!activeToken) return;
+    setIsCheckingQuota(true);
+    try {
+      const quota = await fetchDriveStorageQuota(activeToken);
+      if (quota) {
+        setDriveQuota(quota);
+        setIsAuthExpired(false);
+        if (quota.isExceeded) {
+          setIsQuotaExceeded(true);
+        }
+      }
+    } catch (err: any) {
+      if (err?.message === 'TOKEN_EXPIRED_401') {
+        console.warn('Google Drive token expired (HTTP 401) in ArsipDigital. Resetting token.');
+        setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        setDriveQuota(null);
+        setIsAuthExpired(true);
+      }
+    } finally {
+      setIsCheckingQuota(false);
+    }
+  };
+
+  useEffect(() => {
+    if (googleAccessToken) {
+      checkQuota(googleAccessToken);
+    } else {
+      setDriveQuota(null);
+      setIsQuotaExceeded(false);
+    }
+  }, [googleAccessToken]);
 
   useEffect(() => {
     const q = query(collection(db, 'archives'), orderBy('createdAt', 'desc'));
@@ -2584,7 +4380,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   }, []);
 
   const archiveFolders = [
-    { name: 'Arsip Digital (Pusat)', icon: ShieldCheck, url: 'https://drive.google.com/drive/folders/1CnG1puuC1kv_gw_t-NyX3aP2hKbnOHR2?usp=drive_link' },
+    { name: 'Arsip Digital (Pusat)', icon: ShieldCheck, url: folderUrls['Arsip Digital (Pusat)'] || DEFAULT_DRIVE_FOLDERS['Arsip Digital (Pusat)'] },
   ];
 
   const archiveTypes = [
@@ -2601,19 +4397,30 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     return match ? match[1] : null;
   };
 
-  const handleConnectDrive = async () => {
+  const handleConnectDrive = async (forceSelectAccount = false): Promise<string | null> => {
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope('https://www.googleapis.com/auth/drive');
+      if (forceSelectAccount) {
+        provider.setCustomParameters({ prompt: 'select_account' });
+      }
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
       if (token) {
         setGoogleAccessToken(token);
+        sessionStorage.setItem('google_drive_token', token);
+        setIsAuthExpired(false);
+        setErrorMessage(null);
+        if (uploadStatus === 'error') setUploadStatus('idle');
+        await checkQuota(token);
+        return token;
       }
+      return null;
     } catch (error) {
       console.error('Error connecting to Drive:', error);
       alert('Gagal menghubungkan ke Google Drive.');
+      return null;
     }
   };
 
@@ -2627,7 +4434,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     formData.append('file', file);
 
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -2636,34 +4443,130 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       if (response.status === 401) {
-        throw new Error('Sesi Google Drive telah berakhir. Silakan hubungkan ulang di menu Pengaturan.');
+        throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
       }
-      throw new Error(errorData.error?.message || 'Gagal mengunggah ke Google Drive');
+      const errMsg = errorData.error?.message || 'Gagal mengunggah ke Google Drive';
+      const reason = errorData.error?.errors?.[0]?.reason || '';
+      if (
+        reason === 'storageQuotaExceeded' || 
+        errMsg.toLowerCase().includes('storage quota') || 
+        errMsg.toLowerCase().includes('quota has been exceeded')
+      ) {
+        throw new Error('KUOTA_DRIVE_PENUH: Kapasitas penyimpanan Google Drive akun Anda telah habis (Storage Quota Exceeded).');
+      }
+      throw new Error(errMsg);
     }
 
     return await response.json();
   };
 
-  const handleAddArchive = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveArchiveWithoutDriveUpload = async () => {
+    if (files.length === 0 && !newArchive.name) {
+      alert('Silakan pilih file atau masukkan nama arsip terlebih dahulu.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadStatus('saving');
+
+    try {
+      const itemsToSave = files.length > 0 ? files : [{ name: `${newArchive.name || 'ARSIP'}.pdf`, size: 0 } as any];
+
+      for (let i = 0; i < itemsToSave.length; i++) {
+        const currentFile = itemsToSave[i];
+        const fileExtension = currentFile.name ? currentFile.name.split('.').pop() : 'pdf';
+        const rawName = itemsToSave.length > 1 ? currentFile.name.split('.')[0] : (newArchive.name || currentFile.name.split('.')[0]);
+        const sanitizedName = rawName.replace(/[^a-z0-9]/gi, '-').toUpperCase();
+        const customFileName = `ARSIP_${newArchive.year}_${newArchive.archiveType.replace(/\s+/g, '_').toUpperCase()}_${sanitizedName}.${fileExtension}`;
+        const fileSize = currentFile.size > 0 ? (currentFile.size / (1024 * 1024)).toFixed(2) + ' MB' : '0 MB';
+
+        await addDoc(collection(db, 'archives'), {
+          ...newArchive,
+          name: itemsToSave.length > 1 ? currentFile.name.split('.')[0].toUpperCase() : (newArchive.name || rawName).toUpperCase(),
+          fileName: customFileName,
+          driveFileId: null,
+          url: '',
+          storageStatus: 'quota_exceeded',
+          size: fileSize,
+          createdAt: new Date().toISOString(),
+          uploadedBy: user.uid,
+          uploaderName: user.displayName || user.email || 'Pengguna',
+          note: 'Tersimpan di Cloud-P (Pengunggahan Google Drive ditangguhkan karena kuota penyimpanan Drive penuh).'
+        });
+      }
+
+      setUploadStatus('success');
+      setSyncStatus({ 
+        message: `${itemsToSave.length} data arsip berhasil dicatat di sistem Cloud-P!`, 
+        type: 'success' 
+      });
+      setTimeout(() => setSyncStatus(null), 4000);
+
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setUploadStatus('idle');
+        setFiles([]);
+        setNewArchive({ 
+          name: '', 
+          category: 'Pengadaan Pegawai', 
+          archiveType: 'Surat Rekomendasi TPP',
+          month: MONTHS[new Date().getMonth()],
+          year: new Date().getFullYear().toString(),
+          updateDate: new Date().toISOString().split('T')[0],
+          description: ''
+        });
+        setUploadProgress(0);
+        setIsQuotaExceeded(false);
+        setErrorMessage(null);
+        setIsSubmitting(false);
+      }, 1500);
+    } catch (err: any) {
+      console.error('Error in handleSaveArchiveWithoutDriveUpload:', err);
+      setUploadStatus('error');
+      setErrorMessage('Gagal menyimpan arsip: ' + (err.message || ''));
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddArchive = async (e?: React.FormEvent, overrideTarget?: 'shared' | 'my_drive') => {
+    if (e) e.preventDefault();
     if (files.length === 0) {
       alert('Silakan pilih file terlebih dahulu.');
       return;
     }
 
-    if (!googleAccessToken) {
-      alert('Silakan hubungkan ke Google Drive terlebih dahulu.');
-      return;
+    let activeToken = googleAccessToken;
+    if (!activeToken) {
+      activeToken = await handleConnectDrive(false);
+      if (!activeToken) {
+        setErrorMessage('Silakan hubungkan ke Google Drive terlebih dahulu.');
+        setUploadStatus('error');
+        return;
+      }
+    }
+
+    const currentTarget = overrideTarget || uploadTarget;
+    if (overrideTarget) {
+      setUploadTarget(overrideTarget);
     }
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    setIsQuotaExceeded(false);
+    setIsAuthExpired(false);
     
     try {
-      const categoryObj = archiveFolders.find(c => c.name === newArchive.category);
-      const rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
+      let rootFolderId: string | null = null;
+      if (currentTarget === 'my_drive') {
+        setSyncStatus({ message: 'Menyiapkan folder Cloud-P di My Drive pribadi...', type: 'info' });
+        const baseAppFolder = await getOrCreateFolder('Cloud-P Dokumen', 'root', activeToken);
+        rootFolderId = await getOrCreateFolder('Arsip Digital', baseAppFolder, activeToken);
+      } else {
+        const categoryObj = archiveFolders.find(c => c.name === newArchive.category);
+        rootFolderId = categoryObj ? getFolderId(categoryObj.url) : null;
+      }
 
       if (!rootFolderId) {
         setIsSubmitting(false);
@@ -2675,18 +4578,18 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
 
       // 1. Get or create Month folder (e.g., "Maret 2026")
       const monthFolderName = `${newArchive.month} ${newArchive.year}`;
-      const monthFolderId = await getOrCreateFolder(monthFolderName, rootFolderId, googleAccessToken);
+      const monthFolderId = await getOrCreateFolder(monthFolderName, rootFolderId, activeToken);
 
       // 2. Get or create Archive Type folder (e.g., "SURAT_REKOMENDASI_TPP")
       const archiveFolderName = newArchive.archiveType.replace(/\s+/g, '_').toUpperCase();
-      const finalFolderId = await getOrCreateFolder(archiveFolderName, monthFolderId, googleAccessToken);
+      const finalFolderId = await getOrCreateFolder(archiveFolderName, monthFolderId, activeToken);
 
       let uploadFolderId = finalFolderId;
       let effectiveFolderName = '';
 
       if (files.length > 1) {
         setSyncStatus({ message: `Membuat folder kelompok arsip: ${newArchive.name}...`, type: 'info' });
-        uploadFolderId = await getOrCreateFolder(newArchive.name.toUpperCase(), finalFolderId, googleAccessToken);
+        uploadFolderId = await getOrCreateFolder(newArchive.name.toUpperCase(), finalFolderId, activeToken);
         effectiveFolderName = newArchive.name.toUpperCase();
       }
 
@@ -2705,7 +4608,7 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           setUploadProgress(prev => (prev < 90 ? prev + 10 : prev));
         }, 300);
 
-        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, uploadFolderId, googleAccessToken);
+        const driveResult = await uploadToGoogleDrive(currentFile, customFileName, uploadFolderId, activeToken);
         
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -2745,13 +4648,35 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
         });
         setUploadProgress(0);
         setIsSubmitting(false);
+        setIsQuotaExceeded(false);
       }, 1500);
     } catch (error: any) {
       setUploadStatus('error');
       setSyncStatus(null);
-      const msg = error.message || 'Gagal mengunggah arsip.';
-      if (msg.includes('Sesi Google Drive telah berakhir')) {
+      let msg = error.message || 'Gagal mengunggah arsip.';
+      const isQuota = 
+        msg.includes('KUOTA_DRIVE_PENUH') || 
+        msg.toLowerCase().includes('storage quota') || 
+        msg.toLowerCase().includes('quota has been exceeded') ||
+        msg.toLowerCase().includes('storagequotaexceeded');
+
+      const isAuthError = 
+        msg.includes('SESI_DRIVE_BERAKHIR') ||
+        msg.includes('401') ||
+        msg.toLowerCase().includes('unauthenticated') ||
+        msg.toLowerCase().includes('invalid credentials') ||
+        msg.toLowerCase().includes('invalid authentication credentials') ||
+        msg.includes('Sesi Google Drive telah berakhir');
+
+      if (isAuthError) {
+        setIsAuthExpired(true);
         setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        msg = 'Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan klik tombol "Hubungkan Ulang Google Drive" di bawah ini.';
+      } else if (isQuota) {
+        setIsQuotaExceeded(true);
+        msg = 'Kapasitas penyimpanan Google Drive Anda telah penuh (Storage Quota Exceeded).';
+        checkQuota();
       }
       setErrorMessage(msg);
       setIsSubmitting(false);
@@ -2814,8 +4739,14 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       setTimeout(() => setSyncStatus(null), 5000);
     } catch (error: any) {
       console.error('Sync Error:', error);
-      if (error.message.includes('Sesi Google Drive telah berakhir')) {
+      if (
+        error.message?.includes('SESI_DRIVE_BERAKHIR') ||
+        error.message?.includes('401') ||
+        error.message?.includes('Sesi Google Drive telah berakhir')
+      ) {
         setGoogleAccessToken(null);
+        sessionStorage.removeItem('google_drive_token');
+        setIsAuthExpired(true);
       }
       setSyncStatus({ message: 'Terjadi kesalahan saat sinkronisasi arsip: ' + error.message, type: 'error' });
     } finally {
@@ -2876,6 +4807,61 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
           <p className="text-zinc-500 mt-2">Penyimpanan dokumen resmi dan surat keputusan hasil olah data Bidang Cloud-P.</p>
         </div>
         <div className="flex items-center gap-4">
+          {!googleAccessToken ? (
+            <button 
+              onClick={() => handleConnectDrive(false)}
+              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-zinc-200 text-zinc-600 font-bold rounded-2xl hover:border-yellow-400 hover:text-black transition-all shadow-sm"
+            >
+              <div className="w-5 h-5 flex items-center justify-center">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" alt="Drive" className="w-full h-full" />
+              </div>
+              HUBUNGKAN DRIVE
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 text-xs font-bold rounded-xl border border-green-100">
+                <CheckCircle2 size={14} /> TERHUBUNG
+              </div>
+              {driveQuota && (
+                <button
+                  type="button"
+                  onClick={() => setShowQuotaModal(true)}
+                  disabled={isCheckingQuota}
+                  title="Klik untuk melihat rincian kapasitas & ganti akun Google Drive"
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl border transition-all hover:scale-105 active:scale-95",
+                    driveQuota.isExceeded 
+                      ? "bg-red-50 text-red-700 border-red-200" 
+                      : driveQuota.percentUsed > 85 
+                        ? "bg-amber-50 text-amber-800 border-amber-200" 
+                        : "bg-zinc-50 text-zinc-600 border-zinc-200"
+                  )}
+                >
+                  <HardDrive size={14} className={driveQuota.isExceeded ? "text-red-600 animate-pulse" : "text-zinc-500"} />
+                  <span>
+                    Drive: <strong className={driveQuota.isExceeded ? "text-red-700 font-black" : ""}>{driveQuota.usageFormatted} / {driveQuota.limitFormatted}</strong>
+                  </span>
+                  {driveQuota.isExceeded ? (
+                    <span className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-wider">
+                      PENUH
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-zinc-400">({driveQuota.percentUsed}%)</span>
+                  )}
+                  <Info size={12} className="text-zinc-400" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                title="Beralih Penyimpanan atau Pengaturan Folder Google Drive"
+                className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-yellow-400 hover:text-black text-zinc-700 text-xs font-bold rounded-xl border border-zinc-200 transition-all shadow-sm active:scale-95"
+              >
+                <Settings size={14} />
+                <span className="hidden sm:inline">Beralih / Atur Drive</span>
+              </button>
+            </div>
+          )}
           {isAuthorized && (
             <div className="flex items-center gap-3">
               <button 
@@ -3079,13 +5065,17 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                 </tr>
               ) : (
                 filteredArchives.slice(0, displayLimit).map((archive) => (
-                  <tr key={archive.id} className="hover:bg-zinc-50 transition-colors">
+                  <tr key={archive.id} className="hover:bg-zinc-50 transition-colors group">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-zinc-900 text-yellow-400 rounded-lg flex items-center justify-center">
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer group/item"
+                        onClick={() => setPreviewDoc(archive)}
+                        title="Klik untuk pratinjau isi arsip"
+                      >
+                        <div className="w-8 h-8 bg-zinc-900 text-yellow-400 rounded-lg flex items-center justify-center shrink-0 group-hover/item:scale-105 transition-transform">
                           <ShieldCheck size={16} />
                         </div>
-                        <span className="font-bold text-sm">{archive.name}</span>
+                        <span className="font-bold text-sm group-hover/item:text-yellow-600 group-hover/item:underline">{archive.name}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-500">{archive.archiveType}</td>
@@ -3094,19 +5084,32 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       {archive.month || monthNameFallback(archive.customFolderName) ? `${archive.month || monthNameFallback(archive.customFolderName)} ` : ''}{archive.year}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col items-start gap-1">
+                      <div className="flex items-center gap-1.5">
                         <button 
-                          onClick={() => window.open(archive.url, '_blank')}
-                          className="text-xs font-bold uppercase tracking-widest text-zinc-900 hover:underline"
+                          type="button"
+                          onClick={() => setPreviewDoc(archive)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-[10px] font-black rounded-lg transition-all shadow-sm active:scale-95"
+                          title="Pratinjau isi arsip langsung di dalam aplikasi"
                         >
-                          Buka Arsip
+                          <Eye size={12} />
+                          <span>Pratinjau</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => window.open(archive.url, '_blank')}
+                          className="p-1.5 bg-zinc-900 hover:bg-black text-white rounded-lg transition-all"
+                          title="Buka langsung di Google Drive"
+                        >
+                          <ExternalLink size={12} />
                         </button>
                         {archive.parentFolderId && (
                           <button 
+                            type="button"
                             onClick={() => window.open(`https://drive.google.com/drive/folders/${archive.parentFolderId}`, '_blank')}
-                            className="text-[10px] font-bold text-zinc-400 hover:text-yellow-600"
+                            className="p-1.5 text-zinc-400 hover:text-yellow-600 rounded-lg hover:bg-zinc-100 transition-colors"
+                            title="Buka Folder Drive"
                           >
-                            BUKA FOLDER
+                            <FolderOpen size={13} />
                           </button>
                         )}
                       </div>
@@ -3135,6 +5138,28 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                 </button>
               </div>
               <form onSubmit={handleAddArchive} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                {(!googleAccessToken || isAuthExpired) && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                    <Info className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                        {isAuthExpired ? 'Sesi Google Drive Berakhir (HTTP 401)' : 'Drive Belum Terhubung'}
+                      </p>
+                      <p className="text-[10px] text-amber-700 leading-relaxed">
+                        {isAuthExpired 
+                          ? 'Token otorisasi Google Drive Anda telah kedaluwarsa. Silakan klik Hubungkan Sekarang untuk memperbarui sesi login.'
+                          : 'Anda harus menghubungkan akun ke Google Drive sebelum dapat mengunggah arsip.'}
+                      </p>
+                      <button 
+                        type="button"
+                        onClick={() => handleConnectDrive()}
+                        className="text-[10px] font-black text-amber-900 underline underline-offset-2 hover:text-amber-600 flex items-center gap-1 mt-1"
+                      >
+                        <RefreshCw size={12} /> HUBUNGKAN SEKARANG
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">File Produk Jadi (Wajib)</label>
                   <div className="relative">
@@ -3185,6 +5210,49 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       </span>
                     </label>
                   </div>
+                </div>
+
+                {/* Target Penyimpanan Google Drive */}
+                <div className="p-3.5 bg-zinc-50 rounded-2xl border border-zinc-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                      Target Lokasi Penyimpanan Google Drive
+                    </label>
+                    <span className="text-[10px] font-bold text-zinc-500">
+                      {uploadTarget === 'shared' ? 'Folder Bersama Pusat' : 'My Drive Akun Pribadi'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUploadTarget('shared')}
+                      className={cn(
+                        "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                        uploadTarget === 'shared' 
+                          ? "bg-black text-white border-black shadow-sm" 
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                      )}
+                    >
+                      <FolderOpen size={14} /> Folder Pusat
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadTarget('my_drive')}
+                      className={cn(
+                        "p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                        uploadTarget === 'my_drive' 
+                          ? "bg-black text-white border-black shadow-sm" 
+                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
+                      )}
+                    >
+                      <HardDrive size={14} /> My Drive Pribadi
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-zinc-400">
+                    {uploadTarget === 'shared' 
+                      ? 'Tersimpan di folder arsip pusat Cloud-P. Jika kuota penuh, beralih ke opsi "My Drive Pribadi".' 
+                      : 'Tersimpan otomatis di folder "Cloud-P Dokumen/Arsip Digital" di Google Drive akun pribadi Anda.'}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -3274,12 +5342,141 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: `${uploadProgress}%` }}
-                        className="h-full bg-zinc-900"
+                        className={cn(
+                          "h-full transition-all duration-300",
+                          uploadStatus === 'success' ? "bg-green-500" : 
+                          uploadStatus === 'error' ? "bg-red-500" : "bg-zinc-900"
+                        )}
                       />
                     </div>
                     <p className="text-[10px] font-bold text-zinc-500 uppercase text-center">
-                      {uploadStatus === 'uploading' ? 'Mengirim ke Drive...' : 'Menyimpan ke Database...'}
+                      {uploadStatus === 'uploading' ? `Mengirim ke Drive... ${uploadProgress}%` : 
+                       uploadStatus === 'saving' ? 'Menyimpan ke Database...' : 
+                       uploadStatus === 'success' ? 'Selesai!' : 'Terjadi Kesalahan'}
                     </p>
+                  </div>
+                )}
+
+                {isAuthExpired && (
+                  <div className="p-4 bg-amber-50/95 border-2 border-amber-300 rounded-2xl space-y-3 mt-3 animate-in fade-in duration-300">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={22} />
+                      <div className="space-y-1 text-left flex-1">
+                        <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                          Sesi Google Drive Berakhir (HTTP 401)
+                        </h4>
+                        <p className="text-xs text-amber-900/90 leading-relaxed">
+                          Token otorisasi Google Drive Anda telah berakhir demi keamanan. Silakan klik tombol di bawah ini untuk menghubungkan ulang akun Anda. File yang telah Anda pilih tidak akan hilang.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const token = await handleConnectDrive();
+                        if (token) {
+                          setIsAuthExpired(false);
+                          setErrorMessage(null);
+                          setUploadStatus('idle');
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-yellow-400 hover:bg-yellow-500 text-black font-black rounded-xl text-xs tracking-wider transition-all shadow-md active:scale-95"
+                    >
+                      <RefreshCw size={15} /> HUBUNGKAN ULANG GOOGLE DRIVE SEKARANG
+                    </button>
+                  </div>
+                )}
+
+                {uploadStatus === 'error' && errorMessage && !isQuotaExceeded && !isAuthExpired && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-bold flex items-center gap-2">
+                    <AlertTriangle size={16} className="shrink-0" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                {isQuotaExceeded && (
+                  <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-2xl space-y-3 mt-3 animate-in fade-in duration-300">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={22} />
+                      <div className="space-y-1 text-left flex-1">
+                        <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                          Penyimpanan Google Drive Penuh (Quota Exceeded)
+                        </h4>
+                        <p className="text-xs text-amber-800 leading-relaxed">
+                          Google menolak pengunggahan karena kuota penyimpanan Google Drive akun Anda telah mencapai batas maksimal (15 GB).
+                        </p>
+                        {driveQuota && (
+                          <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200 text-xs text-zinc-700 space-y-1 mt-1">
+                            <div className="flex justify-between font-bold">
+                              <span>Penggunaan Total:</span>
+                              <span className="text-red-600 font-black">{driveQuota.usageFormatted} / {driveQuota.limitFormatted}</span>
+                            </div>
+                            {driveQuota.usageInDriveTrash > 0 && (
+                              <div className="flex justify-between text-[11px] text-amber-900">
+                                <span>Sampah di Drive (Trash):</span>
+                                <span className="font-bold">{driveQuota.trashFormatted} (dapat dikosongkan)</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-amber-200">
+                      <p className="text-[11px] font-bold text-amber-900">Solusi & Tindakan Cepat:</p>
+                      
+                      {uploadTarget === 'shared' && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddArchive(undefined, 'my_drive')}
+                          disabled={isSubmitting}
+                          className="w-full flex items-center justify-center gap-2 py-3 bg-zinc-900 hover:bg-black text-white font-black rounded-xl text-xs tracking-wider transition-all shadow-md"
+                        >
+                          <HardDrive size={15} /> 1. COBA UNGGAH KE MY DRIVE PRIBADI
+                        </button>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleConnectDrive(true)}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-yellow-400 hover:text-black border border-zinc-300 text-zinc-800 rounded-xl text-xs font-bold transition-all shadow-sm"
+                        >
+                          <RefreshCw size={13} /> Ganti Akun Google
+                        </button>
+                        <a 
+                          href="https://drive.google.com/drive/trash" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all text-center"
+                        >
+                          <Trash2 size={13} /> Kosongkan Sampah ↗
+                        </a>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-2">
+                        <a 
+                          href="https://one.google.com/storage" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all text-center"
+                        >
+                          <ExternalLink size={13} /> Kelola Google One ↗
+                        </a>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={handleSaveArchiveWithoutDriveUpload}
+                        disabled={isSubmitting}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-xs tracking-wider transition-all shadow-md shadow-amber-500/20"
+                      >
+                        <Database size={14} /> TETAP SIMPAN ARSIP KE CLOUD-P
+                      </button>
+                      <p className="text-[10px] text-amber-700 text-center">
+                        Metadata arsip tersimpan aman di database Cloud-P dan dapat disinkronkan ke Drive di masa mendatang.
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -3293,13 +5490,49 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
                 >
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : uploadStatus === 'success' ? 'ARSIP BERHASIL DISIMPAN' : 'UNGGAH ARSIP'}
+                  ) : uploadStatus === 'success' ? (
+                    <>
+                      <CheckCircle2 size={20} /> ARSIP BERHASIL DISIMPAN
+                    </>
+                  ) : uploadStatus === 'error' ? (
+                    <>
+                      <RefreshCw size={18} /> COBA UNGGAH ULANG
+                    </>
+                  ) : 'UNGGAH ARSIP'}
                 </button>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal Pratinjau Dokumen */}
+      <DocumentPreviewModal
+        isOpen={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        document={previewDoc}
+      />
+
+      {/* Modal Rincian Kuota & Ganti Akun Google Drive */}
+      <DriveQuotaModal
+        isOpen={showQuotaModal}
+        onClose={() => setShowQuotaModal(false)}
+        quota={driveQuota}
+        onRefresh={() => checkQuota()}
+        isRefreshing={isCheckingQuota}
+        onSwitchAccount={() => handleConnectDrive(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
+      />
+
+      {/* Modal Pengaturan & Pengalihan Folder Google Drive */}
+      <DriveSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        quota={driveQuota}
+        onSwitchAccount={() => handleConnectDrive(true)}
+        folderUrls={folderUrls}
+        onUpdateFolderUrls={(newUrls) => setFolderUrls(newUrls)}
+      />
     </div>
   );
 };
