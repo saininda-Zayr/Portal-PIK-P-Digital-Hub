@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi kategorisasi level akses pengguna (Super Admin, Admin Bidang, Staf Operator, Viewer) pada Manajemen User dengan kontrol menu navigasi dan proteksi izin hapus data.",
+  "updatedAt":  "2026-10-23T16:28:25.621963279Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

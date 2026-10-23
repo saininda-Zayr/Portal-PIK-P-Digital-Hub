@@ -11,7 +11,7 @@
         "lastLogin": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "role": { "type": "string", "enum": ["admin", "staff"] },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "staff", "viewer"] },
         "status": { "type": "string", "enum": ["authorized", "pending"] }
       },
       "required": ["email", "role", "status"]
@@ -45,12 +45,49 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "isPublic": { "type": "boolean" }
       }
+    },
+    "SpkSubmission": {
+      "title": "SpkSubmission",
+      "description": "Surat Perjanjian Kerja (SPK) uploads by PPPK Paruh Waktu",
+      "type": "object",
+      "properties": {
+        "nip": { "type": "string" },
+        "nama": { "type": "string" },
+        "opd": { "type": "string" },
+        "unitKerja": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileSize": { "type": "integer" },
+        "fileType": { "type": "string" },
+        "status": { "type": "string" },
+        "targetDriveUrl": { "type": "string" },
+        "targetFolderPath": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nip", "nama", "opd", "unitKerja", "fileName", "fileSize", "uploadedAt"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "System wide configuration settings",
+      "type": "object",
+      "properties": {
+        "webAppUrl": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
     }
   },
   "firestore": {
+    "/system_settings/{settingId}": {
+      "schema": "SystemSetting",
+      "description": "System configuration parameters"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profiles"
+    },
+    "/spk_pppk_submissions/{submissionId}": {
+      "schema": "SpkSubmission",
+      "description": "SPK submissions from PPPK Paruh Waktu"
     },
     "/stats/{statId}": {
       "schema": "Stat",
