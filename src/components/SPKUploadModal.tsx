@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   X, 
   Upload, 
@@ -14,7 +14,10 @@ import {
   RotateCcw,
   ShieldCheck,
   FolderOpen,
-  ArrowRight
+  ArrowRight,
+  Info,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -24,7 +27,9 @@ import {
   getOpdNames, 
   getUnitKerjaByOpd,
   SPK_DRIVE_ROOT_URL, 
-  MAX_SPK_FILE_SIZE_BYTES 
+  SPK_DRIVE_FOLDER_ID,
+  MAX_SPK_FILE_SIZE_BYTES,
+  formatSpkFileName
 } from '../data/pppkData';
 import { getSpkAppsScriptUrl, uploadSpkToGoogleDriveWebapp } from '../services/spkDriveService';
 
@@ -48,20 +53,40 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
   const [submittingStatus, setSubmittingStatus] = useState<string>('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  // Drive integration check state
+  const [isDriveConfigured, setIsDriveConfigured] = useState<boolean | null>(null);
+
   const [lastSubmission, setLastSubmission] = useState<{
     nip: string;
     nama: string;
     opd: string;
     unitKerja: string;
     fileName: string;
+    originalFileName?: string;
     fileSize: number;
     uploadedAt: string;
     driveFileUrl?: string;
     driveFolderUrl?: string;
     status?: string;
+    driveSyncStatus?: 'synced' | 'unconfigured' | 'error';
+    driveSyncError?: string;
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check Drive Web App connection status when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      getSpkAppsScriptUrl()
+        .then((url) => {
+          setIsDriveConfigured(Boolean(url && url.trim()));
+        })
+        .catch(() => {
+          setIsDriveConfigured(false);
+        });
+    }
+  }, [isOpen]);
 
   // OPD list
   const opdList = useMemo(() => getOpdNames(), []);
@@ -152,17 +177,22 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
     setIsSubmitting(true);
     setSubmittingStatus('Menyiapkan berkas SPK...');
 
+    // Strict standardized filename format: SPK_[NIP]_[Nama].pdf
+    const standardizedFileName = formatSpkFileName(selectedPegawai.nip, selectedPegawai.nama);
+
     try {
       let driveFileUrl = '';
       let driveFolderUrl = '';
       let driveFileId = '';
-      let submissionStatus = 'Tersimpan';
+      let driveSyncStatus: 'synced' | 'unconfigured' | 'error' = 'unconfigured';
+      let driveSyncError = '';
+      let submissionStatus = 'Tercatat di SIM ASN';
 
       // Check if Google Apps Script Web App URL is configured for automatic Drive upload
       const webAppUrl = await getSpkAppsScriptUrl();
-      if (webAppUrl) {
+      if (webAppUrl && webAppUrl.trim()) {
         try {
-          setSubmittingStatus('Mengunggah berkas PDF langsung ke Google Drive...');
+          setSubmittingStatus('Mengunggah berkas fisik PDF langsung ke Google Drive...');
           const driveResult = await uploadSpkToGoogleDriveWebapp({
             webAppUrl,
             nip: selectedPegawai.nip,
@@ -176,25 +206,36 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
             driveFileUrl = driveResult.fileUrl || '';
             driveFolderUrl = driveResult.folderUrl || '';
             driveFileId = driveResult.fileId || '';
+            driveSyncStatus = 'synced';
             submissionStatus = 'Tersimpan di Google Drive';
           }
         } catch (driveErr: any) {
-          console.warn('Gagal menyimpan berkas ke Google Drive Web App, menyimpan riwayat ke sistem:', driveErr);
-          submissionStatus = 'Tercatat (Menunggu Sinkronisasi Drive)';
+          console.warn('Gagal menyimpan berkas ke Google Drive Web App:', driveErr);
+          driveSyncStatus = 'error';
+          driveSyncError = driveErr.message || 'Gagal mengirim berkas ke Google Drive.';
+          submissionStatus = 'Tercatat di SIM ASN (Gagal Sinkron Drive)';
         }
+      } else {
+        // Web App URL is not yet configured by admin
+        driveSyncStatus = 'unconfigured';
+        driveSyncError = 'Jembatan Google Apps Script Web App belum dihubungkan oleh Administrator BKPSDM.';
+        submissionStatus = 'Tercatat di SIM ASN (Drive Belum Terhubung)';
       }
 
-      setSubmittingStatus('Menyimpan riwayat ke database kepegawaian...');
+      setSubmittingStatus('Menyimpan riwayat ke database kepegawaian SIM ASN...');
 
       const submissionData = {
         nip: selectedPegawai.nip,
         nama: selectedPegawai.nama,
         opd: selectedOpd,
         unitKerja: selectedUnitKerja,
-        fileName: file.name,
+        fileName: standardizedFileName, // Strict format: SPK_[NIP]_[Nama].pdf
+        originalFileName: file.name,
         fileSize: file.size,
         fileType: 'application/pdf',
         status: submissionStatus,
+        driveSyncStatus,
+        driveSyncError: driveSyncError || null,
         targetDriveUrl: SPK_DRIVE_ROOT_URL,
         targetFolderPath: `SPK PPPK / ${selectedOpd} / ${selectedUnitKerja}`,
         driveFileUrl: driveFileUrl || null,
@@ -211,11 +252,14 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
         nama: selectedPegawai.nama,
         opd: selectedOpd,
         unitKerja: selectedUnitKerja,
-        fileName: file.name,
+        fileName: standardizedFileName,
+        originalFileName: file.name,
         fileSize: file.size,
         driveFileUrl,
         driveFolderUrl,
         status: submissionStatus,
+        driveSyncStatus,
+        driveSyncError,
         uploadedAt: new Date().toLocaleString('id-ID', {
           dateStyle: 'full',
           timeStyle: 'medium'
@@ -285,18 +329,64 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
           {submitSuccess && lastSubmission ? (
             /* --- SUCCESS CONFIRMATION VIEW --- */
             <div className="space-y-6 text-center py-2 animate-in fade-in zoom-in-95 duration-200">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-xl">
-                <CheckCircle2 size={36} />
-              </div>
+              {lastSubmission.driveSyncStatus === 'synced' ? (
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-xl">
+                  <CheckCircle2 size={36} />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto shadow-xl">
+                  <AlertTriangle size={36} />
+                </div>
+              )}
 
               <div>
-                <h3 className="text-2xl font-black text-white tracking-tight">
-                  Berkas SPK Berhasil Diunggah!
-                </h3>
-                <p className="text-zinc-400 text-sm mt-1">
-                  Data Surat Perjanjian Kerja Anda telah berhasil dicatat dalam sistem kepegawaian BKPSDM.
-                </p>
+                {lastSubmission.driveSyncStatus === 'synced' ? (
+                  <>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
+                      <CheckCircle2 size={14} />
+                      Google Drive Terhubung & Tersimpan
+                    </div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">
+                      Berkas SPK Berhasil Diunggah ke Drive!
+                    </h3>
+                    <p className="text-zinc-400 text-sm mt-1 max-w-lg mx-auto">
+                      Berkas fisik PDF telah berhasil disimpan ke folder Google Drive dengan format nama resmi <span className="text-yellow-400 font-mono font-bold">SPK_NIP_Nama.pdf</span>.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
+                      <AlertCircle size={14} />
+                      Tercatat di SIM ASN (Menunggu Jembatan Drive)
+                    </div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">
+                      Data SPK Berhasil Dicatat di Sistem SIM ASN!
+                    </h3>
+                    <p className="text-zinc-400 text-sm mt-1 max-w-lg mx-auto">
+                      Riwayat pengunggahan Anda telah tersimpan dengan aman di database kepegawaian BKPSDM.
+                    </p>
+                  </>
+                )}
               </div>
+
+              {/* Status Notice if Drive upload was not executed or failed */}
+              {lastSubmission.driveSyncStatus !== 'synced' && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left space-y-2">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                    <AlertTriangle size={16} />
+                    <span>Penjelasan Status Folder Google Drive:</span>
+                  </div>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    Saat ini berkas fisik PDF belum otomatis masuk ke folder Google Drive (<span className="text-yellow-400 font-mono text-[11px]">{lastSubmission.opd} / {lastSubmission.unitKerja}</span>) karena <strong>URL Google Apps Script Web App</strong> belum dihubungkan atau disetel izinnya oleh Administrator.
+                  </p>
+                  <div className="p-3 bg-black/50 rounded-xl border border-zinc-800 text-[11px] text-zinc-400 space-y-1 font-sans">
+                    <div className="font-semibold text-white">Langkah untuk Administrator BKPSDM:</div>
+                    <div>1. Buka menu <strong>Monitoring SPK PPPK</strong> di dashboard.</div>
+                    <div>2. Klik tombol <strong>Setup Folder & Web App Drive</strong>.</div>
+                    <div>3. Salin dan deploy skrip Apps Script sebagai Web App dengan izin <em>&quot;Siapa saja&quot; (Anyone)</em>, lalu simpan URL Web App.</div>
+                  </div>
+                </div>
+              )}
 
               {/* Submission details card */}
               <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 text-left space-y-3">
@@ -317,14 +407,26 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
                     <span className="text-zinc-500 block text-[11px] uppercase tracking-wider">Unit Kerja</span>
                     <span className="font-medium text-zinc-200">{lastSubmission.unitKerja}</span>
                   </div>
-                  <div className="sm:col-span-2 pt-2 border-t border-zinc-800/80 flex items-center justify-between">
-                    <div>
-                      <span className="text-zinc-500 block text-[11px] uppercase tracking-wider">Nama Berkas (PDF)</span>
-                      <span className="font-medium text-zinc-300 truncate block max-w-xs">{lastSubmission.fileName}</span>
+                  <div className="sm:col-span-2 pt-2 border-t border-zinc-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-yellow-400 font-bold block text-[11px] uppercase tracking-wider">
+                          Nama Berkas Tersimpan (Format Standar BKPSDM)
+                        </span>
+                        <span className="font-mono font-bold text-white text-xs sm:text-sm break-all">
+                          {lastSubmission.fileName}
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 text-xs font-mono shrink-0 ml-2">
+                        {formatBytes(lastSubmission.fileSize)}
+                      </span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 text-xs font-mono">
-                      {formatBytes(lastSubmission.fileSize)}
-                    </span>
+
+                    {lastSubmission.originalFileName && lastSubmission.originalFileName !== lastSubmission.fileName && (
+                      <div className="text-[11px] text-zinc-500">
+                        Nama berkas asli saat diunggah: <span className="font-mono text-zinc-400">{lastSubmission.originalFileName}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -333,12 +435,13 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
               <div className="p-4 rounded-2xl bg-zinc-900 border border-yellow-400/20 text-left">
                 <div className="flex items-center gap-2 mb-2 text-yellow-400 font-bold text-xs uppercase tracking-wider">
                   <FolderOpen size={16} />
-                  <span>Struktur Folder Penyimpanan Google Drive:</span>
+                  <span>Lokasi Folder Target di Google Drive:</span>
                 </div>
                 <div className="font-mono text-xs text-zinc-300 bg-black/60 p-3 rounded-xl border border-zinc-800/80 space-y-1">
                   <div className="text-zinc-400">📁 Folder Utama Drive SPK PPPK</div>
                   <div className="pl-4 text-zinc-300">└── 📁 OPD: <span className="text-yellow-400 font-bold">{lastSubmission.opd}</span></div>
                   <div className="pl-8 text-zinc-200">└── 📁 Unit Kerja: <span className="text-white font-bold">{lastSubmission.unitKerja}</span></div>
+                  <div className="pl-12 text-emerald-400">└── 📄 File: <span className="font-bold underline">{lastSubmission.fileName}</span></div>
                 </div>
               </div>
 
@@ -401,31 +504,40 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
                 </label>
 
                 {selectedPegawai ? (
-                  <div className="p-3.5 rounded-2xl bg-yellow-400/10 border border-yellow-400/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-yellow-400 text-black flex items-center justify-center font-black">
-                        <User size={20} />
-                      </div>
-                      <div>
-                        <div className="font-bold text-white text-sm sm:text-base">
-                          {selectedPegawai.nama}
+                  <div className="p-3.5 rounded-2xl bg-yellow-400/10 border border-yellow-400/30 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-yellow-400 text-black flex items-center justify-center font-black">
+                          <User size={20} />
                         </div>
-                        <div className="text-xs font-mono text-yellow-400">
-                          NIP: {selectedPegawai.nip}
+                        <div>
+                          <div className="font-bold text-white text-sm sm:text-base">
+                            {selectedPegawai.nama}
+                          </div>
+                          <div className="text-xs font-mono text-yellow-400">
+                            NIP: {selectedPegawai.nip}
+                          </div>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPegawai(null);
+                          setPegawaiQuery('');
+                          setIsSearchingPegawai(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 font-medium transition"
+                      >
+                        Ubah
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedPegawai(null);
-                        setPegawaiQuery('');
-                        setIsSearchingPegawai(true);
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 font-medium transition"
-                    >
-                      Ubah
-                    </button>
+
+                    <div className="pt-2 border-t border-yellow-400/20 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                      <span className="text-zinc-400 font-medium">Format Nama File Resmi BKPSDM:</span>
+                      <span className="font-mono font-bold text-yellow-400 truncate max-w-sm">
+                        {formatSpkFileName(selectedPegawai.nip, selectedPegawai.nama)}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div className="relative">
@@ -577,29 +689,45 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
                     </p>
                   </div>
                 ) : (
-                  <div className="p-4 rounded-2xl bg-zinc-900 border border-emerald-500/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                        <FileText size={20} />
-                      </div>
-                      <div className="truncate">
-                        <div className="text-sm font-bold text-white truncate">{file.name}</div>
-                        <div className="text-xs text-emerald-400 font-mono">
-                          {formatBytes(file.size)} &bull; PDF Valid (&lt; 1 MB)
+                  <div className="p-4 rounded-2xl bg-zinc-900 border border-emerald-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                          <FileText size={20} />
+                        </div>
+                        <div className="truncate">
+                          <div className="text-[11px] text-zinc-400">Berkas Asli Diunggah:</div>
+                          <div className="text-sm font-bold text-white truncate">{file.name}</div>
+                          <div className="text-xs text-emerald-400 font-mono">
+                            {formatBytes(file.size)} &bull; PDF Valid (&lt; 1 MB)
+                          </div>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="p-2 rounded-xl bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition shrink-0"
+                        title="Hapus berkas"
+                      >
+                        <X size={18} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="p-2 rounded-xl bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 transition shrink-0"
-                      title="Hapus berkas"
-                    >
-                      <X size={18} />
-                    </button>
+
+                    {/* Standardized filename indicator */}
+                    <div className="p-3 bg-black/50 border border-yellow-400/20 rounded-xl space-y-1">
+                      <div className="flex items-center gap-1.5 text-yellow-400 text-[11px] font-bold uppercase tracking-wider">
+                        <ShieldCheck size={14} />
+                        <span>Nama Berkas yang Disimpan di Google Drive:</span>
+                      </div>
+                      <div className="font-mono text-xs font-bold text-white break-all">
+                        {selectedPegawai 
+                          ? formatSpkFileName(selectedPegawai.nip, selectedPegawai.nama)
+                          : 'SPK_[NIP]_[Nama].pdf (Pilih pegawai di atas)'}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -611,8 +739,25 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
                 )}
               </div>
 
+              {/* Google Drive Status Bar */}
+              <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isDriveConfigured ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <span className="text-zinc-300 font-medium">
+                    {isDriveConfigured ? (
+                      <>Jembatan Google Drive: <span className="text-emerald-400 font-bold">Terhubung Aktif</span></>
+                    ) : (
+                      <>Jembatan Google Drive: <span className="text-amber-400 font-bold">Belum Dikonfigurasi Admin</span></>
+                    )}
+                  </span>
+                </div>
+                <span className="text-[11px] text-zinc-500 font-mono hidden sm:inline">
+                  Folder: {SPK_DRIVE_FOLDER_ID.slice(0, 10)}...
+                </span>
+              </div>
+
               {/* Submit Button */}
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={isSubmitting || !selectedPegawai || !selectedOpd || !selectedUnitKerja || !file}

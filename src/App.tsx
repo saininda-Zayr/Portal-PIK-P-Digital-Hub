@@ -2133,16 +2133,111 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
   };
 
   const uploadToGoogleDrive = async (file: File, fileName: string, folderId: string, accessToken: string) => {
+    console.group(`[DataCenter:uploadToGoogleDrive] Mengunggah file "${fileName}" ke Google Drive`);
+    console.log('[DataCenter:uploadToGoogleDrive] Parameter input:', {
+      fileName,
+      folderId,
+      fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB (${file.size} bytes)`,
+      fileType: file.type || 'unknown/binary',
+      tokenAvailable: Boolean(accessToken)
+    });
+
+    // 1. Validasi Keberadaan dan Format folderId
+    if (!folderId || typeof folderId !== 'string' || !folderId.trim() || folderId === 'null' || folderId === 'undefined') {
+      console.error('[DataCenter:uploadToGoogleDrive] ERROR: folderId tidak valid atau kosong!', { folderId });
+      console.groupEnd();
+      throw new Error(`ID Folder tujuan tidak valid: "${folderId}". Proses pengunggahan dibatalkan.`);
+    }
+
+    const cleanFolderId = folderId.trim();
+
+    // 2. Pemeriksaan Asinkron Folder Google Drive (memastikan folder ID benar-benar ada dan dapat ditulis)
+    if (cleanFolderId !== 'root') {
+      console.log(`[DataCenter:uploadToGoogleDrive] Melakukan verifikasi asinkron ke Google Drive API untuk folder ID: "${cleanFolderId}"...`);
+      try {
+        const verifyRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${cleanFolderId}?fields=id,name,mimeType,trashed,capabilities(canAddChildren)&supportsAllDrives=true`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/json'
+            }
+          }
+        );
+
+        console.log(`[DataCenter:uploadToGoogleDrive] Hasil verifikasi folder API: HTTP ${verifyRes.status} ${verifyRes.statusText}`);
+
+        if (!verifyRes.ok) {
+          const errBody = await verifyRes.text().catch(() => '');
+          console.error('[DataCenter:uploadToGoogleDrive] Validasi folder gagal (response.ok = false):', {
+            status: verifyRes.status,
+            statusText: verifyRes.statusText,
+            body: errBody
+          });
+
+          if (verifyRes.status === 401) {
+            console.groupEnd();
+            throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
+          } else if (verifyRes.status === 404) {
+            console.groupEnd();
+            throw new Error(`FOLDER_TIDAK_DITEMUKAN: Folder tujuan (ID: "${cleanFolderId}") tidak ditemukan atau telah dihapus di Google Drive.`);
+          } else if (verifyRes.status === 403) {
+            console.groupEnd();
+            throw new Error(`AKSES_DITOLAK: Akun Google Anda tidak memiliki izin untuk mengakses folder (ID: "${cleanFolderId}"). Pastikan Anda memiliki akses Editor.`);
+          } else {
+            console.groupEnd();
+            throw new Error(`Gagal memverifikasi folder tujuan di Google Drive (HTTP ${verifyRes.status}): ${errBody || verifyRes.statusText}`);
+          }
+        }
+
+        const folderData = await verifyRes.json();
+        console.log('[DataCenter:uploadToGoogleDrive] Folder tujuan berhasil diverifikasi secara asinkron:', {
+          id: folderData.id,
+          name: folderData.name,
+          mimeType: folderData.mimeType,
+          trashed: folderData.trashed,
+          canAddChildren: folderData.capabilities?.canAddChildren
+        });
+
+        if (folderData.trashed) {
+          console.groupEnd();
+          throw new Error(`FOLDER_DI_TRASH: Folder tujuan "${folderData.name}" (ID: ${cleanFolderId}) berada di tempat sampah (Trash) Google Drive.`);
+        }
+
+        if (folderData.mimeType !== 'application/vnd.google-apps.folder') {
+          console.groupEnd();
+          throw new Error(`BUKAN_FOLDER: Objek Google Drive "${cleanFolderId}" (${folderData.name}) bukan folder (tipe: ${folderData.mimeType}).`);
+        }
+      } catch (verifyErr: any) {
+        if (
+          verifyErr.message?.startsWith('SESI_DRIVE_BERAKHIR') || 
+          verifyErr.message?.startsWith('FOLDER_TIDAK_DITEMUKAN') || 
+          verifyErr.message?.startsWith('AKSES_DITOLAK') ||
+          verifyErr.message?.startsWith('FOLDER_DI_TRASH') ||
+          verifyErr.message?.startsWith('BUKAN_FOLDER')
+        ) {
+          throw verifyErr;
+        }
+        console.warn('[DataCenter:uploadToGoogleDrive] Catatan: Pengecekan asinkron folder mengalami kendala non-fatal, melanjutkan ke proses upload:', verifyErr);
+      }
+    }
+
+    // 3. Menyiapkan Data Multipart Form untuk Pengunggahan
+    console.log('[DataCenter:uploadToGoogleDrive] Menyusun payload multipart upload dengan parent folder:', cleanFolderId);
     const metadata = {
       name: fileName,
-      parents: [folderId],
+      parents: [cleanFolderId],
     };
 
     const formData = new FormData();
     formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     formData.append('file', file);
 
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true', {
+    const uploadEndpoint = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,parents,size&supportsAllDrives=true';
+    console.log(`[DataCenter:uploadToGoogleDrive] Mengirim request POST ke Google Drive API: ${uploadEndpoint}`);
+
+    const response = await fetch(uploadEndpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -2150,13 +2245,35 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       body: formData,
     });
 
+    console.log(`[DataCenter:uploadToGoogleDrive] Respon diterima dari Google Drive API: HTTP ${response.status} ${response.statusText}`);
+
+    // 4. Validasi response.ok Sebelum Memproses Respons
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      console.error(`[DataCenter:uploadToGoogleDrive] Upload GAGAL (response.ok = false). Status: HTTP ${response.status}`);
+      let errorData: any = {};
+      let rawErrorText = '';
+      try {
+        rawErrorText = await response.text();
+        errorData = JSON.parse(rawErrorText);
+      } catch {
+        // Fallback jika bukan format JSON
+      }
+
+      console.error('[DataCenter:uploadToGoogleDrive] Rincian error pengunggahan:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        rawErrorText: rawErrorText.slice(0, 300)
+      });
+      console.groupEnd();
+
       if (response.status === 401) {
         throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
       }
-      const errMsg = errorData.error?.message || 'Gagal mengunggah ke Google Drive';
+
+      const errMsg = errorData.error?.message || rawErrorText || 'Gagal mengunggah ke Google Drive';
       const reason = errorData.error?.errors?.[0]?.reason || '';
+
       if (
         reason === 'storageQuotaExceeded' || 
         errMsg.toLowerCase().includes('storage quota') || 
@@ -2164,10 +2281,34 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       ) {
         throw new Error('KUOTA_DRIVE_PENUH: Kapasitas penyimpanan Google Drive akun Anda telah habis (Storage Quota Exceeded).');
       }
-      throw new Error(errMsg);
+
+      if (response.status === 404 || errMsg.toLowerCase().includes('file not found')) {
+        throw new Error(`FOLDER_INDUK_TIDAK_DITEMUKAN: Folder tujuan (ID: ${cleanFolderId}) tidak ditemukan di Google Drive.`);
+      }
+
+      throw new Error(`Google Drive Upload Error (${response.status}): ${errMsg}`);
     }
 
-    return await response.json();
+    // 5. Respons Terverifikasi OK -> Memproses Payload JSON
+    console.log('[DataCenter:uploadToGoogleDrive] Validasi response.ok = TRUE. Memproses respons JSON...');
+    const result = await response.json();
+
+    if (!result || !result.id) {
+      console.error('[DataCenter:uploadToGoogleDrive] Format respons tidak valid, ID file tidak ditemukan:', result);
+      console.groupEnd();
+      throw new Error('Google Drive merespon sukses tetapi tidak mengembalikan ID file yang valid.');
+    }
+
+    console.log('[DataCenter:uploadToGoogleDrive] Pengunggahan berhasil diselesaikan:', {
+      fileId: result.id,
+      fileName: result.name || fileName,
+      targetFolderId: cleanFolderId,
+      parents: result.parents,
+      webViewLink: result.webViewLink
+    });
+    console.groupEnd();
+
+    return result;
   };
 
   const handleSaveWithoutDriveUpload = async () => {
@@ -2304,10 +2445,17 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
       // 1. Get or create Activity Code folder (e.g., "01_Data Identitas dan Profil Pegawai")
       const activityObj = ACTIVITY_CODES[newDoc.category]?.find(a => a.code === newDoc.activityCode);
       const activityFolderName = activityObj ? `${activityObj.code}_${activityObj.label}` : newDoc.activityCode;
+      console.log('[DataCenter:handleUpload] Menyiapkan hierarki folder:', {
+        kategori: newDoc.category,
+        rootFolderId,
+        activityCode: newDoc.activityCode,
+        activityFolderName
+      });
       const activityFolderId = await getOrCreateFolder(activityFolderName, rootFolderId, activeToken);
 
       // 2. Get or create Year folder (e.g., "2026")
       const yearFolderId = await getOrCreateFolder(newDoc.year, activityFolderId, activeToken);
+      console.log('[DataCenter:handleUpload] Folder tahun siap:', { year: newDoc.year, yearFolderId });
 
       // 3. Get or create Final folder
       let finalFolderId = yearFolderId;
@@ -2332,6 +2480,12 @@ const DataCenter = ({ user, userData, googleAccessToken, setGoogleAccessToken }:
         finalFolderId = await getOrCreateFolder(newDoc.name.toUpperCase(), finalFolderId, activeToken);
         effectiveFolderName = newDoc.name.toUpperCase();
       }
+
+      console.log('[DataCenter:handleUpload] Folder tujuan akhir (finalFolderId) ditentukan:', {
+        finalFolderId,
+        effectiveFolderName: effectiveFolderName || '(tahun)',
+        totalFiles: files.length
+      });
 
       for (let i = 0; i < files.length; i++) {
         const currentFile = files[i];
@@ -4719,16 +4873,111 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
   };
 
   const uploadToGoogleDrive = async (file: File, fileName: string, folderId: string, accessToken: string) => {
+    console.group(`[ArsipDigital:uploadToGoogleDrive] Mengunggah file arsip "${fileName}" ke Google Drive`);
+    console.log('[ArsipDigital:uploadToGoogleDrive] Parameter input:', {
+      fileName,
+      folderId,
+      fileSize: `${(file.size / (1024 * 1024)).toFixed(2)} MB (${file.size} bytes)`,
+      fileType: file.type || 'unknown/binary',
+      tokenAvailable: Boolean(accessToken)
+    });
+
+    // 1. Validasi Keberadaan dan Format folderId
+    if (!folderId || typeof folderId !== 'string' || !folderId.trim() || folderId === 'null' || folderId === 'undefined') {
+      console.error('[ArsipDigital:uploadToGoogleDrive] ERROR: folderId tidak valid atau kosong!', { folderId });
+      console.groupEnd();
+      throw new Error(`ID Folder tujuan arsip tidak valid: "${folderId}". Proses pengunggahan dibatalkan.`);
+    }
+
+    const cleanFolderId = folderId.trim();
+
+    // 2. Pemeriksaan Asinkron Folder Google Drive
+    if (cleanFolderId !== 'root') {
+      console.log(`[ArsipDigital:uploadToGoogleDrive] Melakukan verifikasi asinkron ke Google Drive API untuk folder ID: "${cleanFolderId}"...`);
+      try {
+        const verifyRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${cleanFolderId}?fields=id,name,mimeType,trashed,capabilities(canAddChildren)&supportsAllDrives=true`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/json'
+            }
+          }
+        );
+
+        console.log(`[ArsipDigital:uploadToGoogleDrive] Hasil verifikasi folder API: HTTP ${verifyRes.status} ${verifyRes.statusText}`);
+
+        if (!verifyRes.ok) {
+          const errBody = await verifyRes.text().catch(() => '');
+          console.error('[ArsipDigital:uploadToGoogleDrive] Validasi folder gagal (response.ok = false):', {
+            status: verifyRes.status,
+            statusText: verifyRes.statusText,
+            body: errBody
+          });
+
+          if (verifyRes.status === 401) {
+            console.groupEnd();
+            throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
+          } else if (verifyRes.status === 404) {
+            console.groupEnd();
+            throw new Error(`FOLDER_TIDAK_DITEMUKAN: Folder arsip tujuan (ID: "${cleanFolderId}") tidak ditemukan atau telah dihapus di Google Drive.`);
+          } else if (verifyRes.status === 403) {
+            console.groupEnd();
+            throw new Error(`AKSES_DITOLAK: Akun Google Anda tidak memiliki izin untuk mengakses folder arsip (ID: "${cleanFolderId}"). Pastikan Anda memiliki akses Editor.`);
+          } else {
+            console.groupEnd();
+            throw new Error(`Gagal memverifikasi folder arsip di Google Drive (HTTP ${verifyRes.status}): ${errBody || verifyRes.statusText}`);
+          }
+        }
+
+        const folderData = await verifyRes.json();
+        console.log('[ArsipDigital:uploadToGoogleDrive] Folder arsip tujuan berhasil diverifikasi secara asinkron:', {
+          id: folderData.id,
+          name: folderData.name,
+          mimeType: folderData.mimeType,
+          trashed: folderData.trashed,
+          canAddChildren: folderData.capabilities?.canAddChildren
+        });
+
+        if (folderData.trashed) {
+          console.groupEnd();
+          throw new Error(`FOLDER_DI_TRASH: Folder arsip "${folderData.name}" (ID: ${cleanFolderId}) berada di tempat sampah (Trash) Google Drive.`);
+        }
+
+        if (folderData.mimeType !== 'application/vnd.google-apps.folder') {
+          console.groupEnd();
+          throw new Error(`BUKAN_FOLDER: Objek Google Drive "${cleanFolderId}" (${folderData.name}) bukan folder (tipe: ${folderData.mimeType}).`);
+        }
+      } catch (verifyErr: any) {
+        if (
+          verifyErr.message?.startsWith('SESI_DRIVE_BERAKHIR') || 
+          verifyErr.message?.startsWith('FOLDER_TIDAK_DITEMUKAN') || 
+          verifyErr.message?.startsWith('AKSES_DITOLAK') ||
+          verifyErr.message?.startsWith('FOLDER_DI_TRASH') ||
+          verifyErr.message?.startsWith('BUKAN_FOLDER')
+        ) {
+          throw verifyErr;
+        }
+        console.warn('[ArsipDigital:uploadToGoogleDrive] Catatan: Pengecekan asinkron folder mengalami kendala non-fatal, melanjutkan ke proses upload:', verifyErr);
+      }
+    }
+
+    // 3. Menyiapkan Data Multipart Form untuk Pengunggahan
+    console.log('[ArsipDigital:uploadToGoogleDrive] Menyusun payload multipart upload dengan parent folder:', cleanFolderId);
     const metadata = {
       name: fileName,
-      parents: [folderId],
+      parents: [cleanFolderId],
     };
 
     const formData = new FormData();
     formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     formData.append('file', file);
 
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true', {
+    const uploadEndpoint = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,parents,size&supportsAllDrives=true';
+    console.log(`[ArsipDigital:uploadToGoogleDrive] Mengirim request POST ke Google Drive API: ${uploadEndpoint}`);
+
+    const response = await fetch(uploadEndpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -4736,13 +4985,35 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       body: formData,
     });
 
+    console.log(`[ArsipDigital:uploadToGoogleDrive] Respon diterima dari Google Drive API: HTTP ${response.status} ${response.statusText}`);
+
+    // 4. Validasi response.ok Sebelum Memproses Respons
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      console.error(`[ArsipDigital:uploadToGoogleDrive] Upload GAGAL (response.ok = false). Status: HTTP ${response.status}`);
+      let errorData: any = {};
+      let rawErrorText = '';
+      try {
+        rawErrorText = await response.text();
+        errorData = JSON.parse(rawErrorText);
+      } catch {
+        // Fallback jika bukan format JSON
+      }
+
+      console.error('[ArsipDigital:uploadToGoogleDrive] Rincian error pengunggahan:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        rawErrorText: rawErrorText.slice(0, 300)
+      });
+      console.groupEnd();
+
       if (response.status === 401) {
         throw new Error('SESI_DRIVE_BERAKHIR: Sesi otorisasi Google Drive telah berakhir (HTTP 401: Token Kedaluwarsa). Silakan hubungkan ulang akun Google Drive Anda.');
       }
-      const errMsg = errorData.error?.message || 'Gagal mengunggah ke Google Drive';
+
+      const errMsg = errorData.error?.message || rawErrorText || 'Gagal mengunggah ke Google Drive';
       const reason = errorData.error?.errors?.[0]?.reason || '';
+
       if (
         reason === 'storageQuotaExceeded' || 
         errMsg.toLowerCase().includes('storage quota') || 
@@ -4750,10 +5021,34 @@ const ArsipDigital = ({ user, userData, googleAccessToken, setGoogleAccessToken 
       ) {
         throw new Error('KUOTA_DRIVE_PENUH: Kapasitas penyimpanan Google Drive akun Anda telah habis (Storage Quota Exceeded).');
       }
-      throw new Error(errMsg);
+
+      if (response.status === 404 || errMsg.toLowerCase().includes('file not found')) {
+        throw new Error(`FOLDER_INDUK_TIDAK_DITEMUKAN: Folder tujuan (ID: ${cleanFolderId}) tidak ditemukan di Google Drive.`);
+      }
+
+      throw new Error(`Google Drive Upload Error (${response.status}): ${errMsg}`);
     }
 
-    return await response.json();
+    // 5. Respons Terverifikasi OK -> Memproses Payload JSON
+    console.log('[ArsipDigital:uploadToGoogleDrive] Validasi response.ok = TRUE. Memproses respons JSON...');
+    const result = await response.json();
+
+    if (!result || !result.id) {
+      console.error('[ArsipDigital:uploadToGoogleDrive] Format respons tidak valid, ID file tidak ditemukan:', result);
+      console.groupEnd();
+      throw new Error('Google Drive merespon sukses tetapi tidak mengembalikan ID file yang valid.');
+    }
+
+    console.log('[ArsipDigital:uploadToGoogleDrive] Pengunggahan berhasil diselesaikan:', {
+      fileId: result.id,
+      fileName: result.name || fileName,
+      targetFolderId: cleanFolderId,
+      parents: result.parents,
+      webViewLink: result.webViewLink
+    });
+    console.groupEnd();
+
+    return result;
   };
 
   const handleSaveArchiveWithoutDriveUpload = async () => {

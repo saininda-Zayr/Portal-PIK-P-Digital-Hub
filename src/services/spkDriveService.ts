@@ -1,6 +1,6 @@
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ALL_OPD, SPK_DRIVE_FOLDER_ID, SPK_DRIVE_ROOT_URL } from '../data/pppkData';
+import { ALL_OPD, SPK_DRIVE_FOLDER_ID, SPK_DRIVE_ROOT_URL, formatSpkFileName } from '../data/pppkData';
 
 const SETTINGS_DOC_PATH = 'system_settings';
 const SPK_CONFIG_DOC_ID = 'spk_drive_config';
@@ -95,6 +95,15 @@ export async function testSpkAppsScriptUrl(url: string): Promise<{ success: bool
       headers: { 'Accept': 'application/json' }
     });
 
+    const rawText = await res.text().catch(() => '');
+
+    if (rawText.includes('ServiceLogin') || rawText.includes('accounts.google.com')) {
+      return {
+        success: false,
+        message: 'Akses Ditolak: Web App meminta login Google. Pastikan saat deploy di Apps Script, opsi "Who has access" (Siapa yang memiliki akses) disetel ke "Anyone" (Siapa saja).'
+      };
+    }
+
     if (!res.ok) {
       return {
         success: false,
@@ -102,12 +111,16 @@ export async function testSpkAppsScriptUrl(url: string): Promise<{ success: bool
       };
     }
 
-    const data = await res.json().catch(() => null);
-    if (data && (data.status === 'ok' || data.rootFolderId)) {
-      return {
-        success: true,
-        message: 'Koneksi ke Google Apps Script berhasil dan aktif!'
-      };
+    try {
+      const data = JSON.parse(rawText);
+      if (data && (data.status === 'ok' || data.rootFolderId)) {
+        return {
+          success: true,
+          message: 'Koneksi ke Google Apps Script berhasil dan aktif!'
+        };
+      }
+    } catch {
+      // not json but 200 ok
     }
 
     return {
@@ -140,7 +153,8 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 /**
- * Upload SPK PDF file directly to Google Drive via Google Apps Script Web App
+ * Upload SPK PDF file directly to Google Drive via Google Apps Script Web App.
+ * Strict naming rule: SPK_[NIP]_[Nama].pdf
  */
 export async function uploadSpkToGoogleDriveWebapp(params: {
   webAppUrl: string;
@@ -152,9 +166,12 @@ export async function uploadSpkToGoogleDriveWebapp(params: {
 }): Promise<UploadSpkDriveResult> {
   const { webAppUrl, nip, nama, opd, unitKerja, file } = params;
 
-  if (!webAppUrl) {
-    throw new Error('URL Google Apps Script Web App belum dikonfigurasi.');
+  if (!webAppUrl || !webAppUrl.trim()) {
+    throw new Error('URL Google Apps Script Web App belum dikonfigurasi oleh Administrator.');
   }
+
+  // Generate standardized file name: SPK_[NIP]_[Nama].pdf
+  const standardizedFileName = formatSpkFileName(nip, nama);
 
   // Convert PDF to base64
   const fileBase64 = await fileToBase64(file);
@@ -164,28 +181,46 @@ export async function uploadSpkToGoogleDriveWebapp(params: {
     nama,
     opd,
     unitKerja,
-    fileName: file.name,
+    fileName: standardizedFileName,
+    originalFileName: file.name,
     mimeType: file.type || 'application/pdf',
     fileBase64
   };
 
-  // We use text/plain to avoid CORS preflight issues with Google Apps Script
-  const response = await fetch(webAppUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`Google Drive Web App Error (${response.status}): ${errorText || 'Gagal menyimpan ke Google Drive'}`);
+  let response: Response;
+  try {
+    // We use text/plain to avoid CORS preflight issues with Google Apps Script
+    response = await fetch(webAppUrl.trim(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (networkErr: any) {
+    throw new Error(`Gagal menghubungi server Google Drive Apps Script: ${networkErr.message || 'Jaringan / CORS bermasalah'}. Pastikan URL Web App aktif.`);
   }
 
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error || 'Gagal menyimpan berkas ke folder Google Drive.');
+  const rawText = await response.text().catch(() => '');
+
+  // Check if Google redirected to a login page instead of running Web App
+  if (rawText.includes('ServiceLogin') || rawText.includes('accounts.google.com')) {
+    throw new Error('Google Apps Script meminta otentikasi login Google. Pastikan saat Deploy Web App di Google Apps Script, pengaturan "Who has access" (Siapa yang memiliki akses) disetel ke "Anyone" (Siapa saja).');
+  }
+
+  if (!response.ok) {
+    throw new Error(`Google Drive Web App Error (${response.status}): ${rawText.slice(0, 200) || 'Gagal menyimpan ke Google Drive'}`);
+  }
+
+  let result: any;
+  try {
+    result = JSON.parse(rawText);
+  } catch (parseErr) {
+    throw new Error(`Respon dari Google Apps Script bukan format JSON yang valid. Respon: ${rawText.slice(0, 150)}`);
+  }
+
+  if (!result || !result.success) {
+    throw new Error(result?.error || 'Gagal menyimpan berkas ke folder Google Drive.');
   }
 
   return {
@@ -194,7 +229,7 @@ export async function uploadSpkToGoogleDriveWebapp(params: {
     fileUrl: result.fileUrl,
     downloadUrl: result.downloadUrl,
     folderUrl: result.folderUrl,
-    fileName: result.fileName
+    fileName: result.fileName || standardizedFileName
   };
 }
 

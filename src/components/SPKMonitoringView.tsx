@@ -20,6 +20,7 @@ import {
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { SPK_DRIVE_ROOT_URL, SpkSubmissionRecord, getOpdNames } from '../data/pppkData';
+import { getSpkAppsScriptUrl } from '../services/spkDriveService';
 import { GoogleDriveAutomationModal } from './GoogleDriveAutomationModal';
 
 interface SPKMonitoringViewProps {
@@ -36,8 +37,18 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOpdFilter, setSelectedOpdFilter] = useState('');
   const [isAutomationModalOpen, setIsAutomationModalOpen] = useState(false);
+  const [isDriveConnected, setIsDriveConnected] = useState<boolean | null>(null);
 
   const opdList = useMemo(() => getOpdNames(), []);
+
+  // Check Drive Web App connection status
+  useEffect(() => {
+    getSpkAppsScriptUrl()
+      .then((url) => {
+        setIsDriveConnected(Boolean(url && url.trim()));
+      })
+      .catch(() => setIsDriveConnected(false));
+  }, [isAutomationModalOpen]);
 
   useEffect(() => {
     try {
@@ -154,6 +165,45 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
         </div>
       </div>
 
+      {/* Drive Integration Status Banner for Admins */}
+      {isDriveConnected === false ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-900 shadow-sm">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm sm:text-base">
+                Peringatan: Jembatan Google Apps Script Web App Belum Terhubung
+              </h4>
+              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed max-w-2xl">
+                Berkas SPK yang diunggah peserta akan tercatat di SIM ASN, namun <strong>belum otomatis masuk ke folder Google Drive</strong> (OPD &gt; Unit Kerja) karena URL Web App belum diaktifkan. Klik tombol di samping untuk konfigurasi.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsAutomationModalOpen(true)}
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl shadow-sm transition shrink-0 self-start sm:self-auto flex items-center gap-2"
+          >
+            <span>Hubungkan Web App Sekarang</span>
+            <ExternalLink size={13} />
+          </button>
+        </div>
+      ) : isDriveConnected === true ? (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3 flex items-center justify-between text-emerald-900 text-xs">
+          <div className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 size={16} className="text-emerald-600" />
+            <span>Jembatan Google Drive Aktif: Berkas baru otomatis masuk ke folder OPD &gt; Unit Kerja dengan format nama resmi <strong className="font-mono text-emerald-800">SPK_NIP_Nama.pdf</strong>.</span>
+          </div>
+          <button
+            onClick={() => setIsAutomationModalOpen(true)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs underline underline-offset-2 shrink-0 ml-4"
+          >
+            Kelola Setup
+          </button>
+        </div>
+      ) : null}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-zinc-200/80 shadow-sm flex items-center justify-between">
@@ -265,7 +315,8 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
                 <tr>
                   <th className="py-4 px-6">Pegawai (NIP & Nama)</th>
                   <th className="py-4 px-6">OPD & Unit Kerja</th>
-                  <th className="py-4 px-6">Berkas SPK (PDF)</th>
+                  <th className="py-4 px-6">Nama Berkas (SPK_NIP_Nama)</th>
+                  <th className="py-4 px-6">Status Drive</th>
                   <th className="py-4 px-6">Waktu Unggah</th>
                   <th className="py-4 px-6 text-right">Aksi</th>
                 </tr>
@@ -289,13 +340,34 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
                         <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-600 font-bold text-[10px] uppercase border border-rose-200">
                           PDF
                         </span>
-                        <span className="font-medium text-zinc-700 truncate max-w-[200px]" title={sub.fileName}>
+                        <span className="font-mono font-semibold text-zinc-800 truncate max-w-[220px]" title={sub.fileName}>
                           {sub.fileName}
                         </span>
                       </div>
-                      <div className="text-[11px] text-zinc-400 mt-0.5">
-                        {formatFileSize(sub.fileSize)}
+                      <div className="text-[11px] text-zinc-400 mt-0.5 flex items-center gap-2">
+                        <span>{formatFileSize(sub.fileSize)}</span>
+                        {sub.originalFileName && sub.originalFileName !== sub.fileName && (
+                          <span className="text-[10px] text-zinc-400 italic" title={`Nama asli saat diunggah: ${sub.originalFileName}`}>
+                            (asli: {sub.originalFileName.length > 20 ? sub.originalFileName.slice(0, 18) + '...' : sub.originalFileName})
+                          </span>
+                        )}
                       </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      {sub.driveFileUrl ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
+                          <CheckCircle2 size={12} />
+                          <span>Tersimpan di Drive</span>
+                        </span>
+                      ) : (
+                        <span 
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200"
+                          title="Berkas tercatat di sistem SIM ASN. Belum ada di folder Google Drive karena Web App belum terhubung saat peserta mengunggah."
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          <span>Belum Masuk Drive</span>
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       <div className="text-zinc-600 flex items-center gap-1.5">

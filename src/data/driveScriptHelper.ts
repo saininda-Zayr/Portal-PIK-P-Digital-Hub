@@ -89,11 +89,13 @@ function getOrCreateSubFolder(parentFolder, folderName) {
  * CARA PAKAI:
  * 1. Klik tombol "Deploy" / "Terapkan" di pojok kanan atas > "Deployment Baru"
  * 2. Pilih jenis: "Aplikasi Web" (Web App)
- * 3. Konfigurasi:
- *    - Jalankan sebagai: "Saya" (Akun Google Anda)
- *    - Siapa yang memiliki akses: "Siapa saja" (Anyone)
- * 4. Klik "Terapkan" lalu salin "URL Aplikasi Web"
- * 5. Tempel URL tersebut ke menu Pengaturan SPK di aplikasi web
+ * 3. Konfigurasi Deployment (SANGAT PENTING):
+ *    - Deskripsi: Web App Unggah SPK PPPK
+ *    - Jalankan sebagai (Execute as): "Saya" / "Me" (Akun Google Anda)
+ *    - Siapa yang memiliki akses (Who has access): "Siapa saja" / "Anyone"
+ *      (PENTING: Jangan pilih 'Hanya saya' agar aplikasi web publik dapat mengirim berkas)
+ * 4. Klik "Terapkan" (Deploy) lalu salin "URL Aplikasi Web" (akhiran /exec)
+ * 5. Tempel URL tersebut ke menu Setup Drive di aplikasi SIM ASN
  */
 function doPost(e) {
   try {
@@ -119,7 +121,7 @@ function doPost(e) {
       throw new Error("Nama OPD wajib disertakan.");
     }
 
-    // 1. Dapatkan folder root
+    // 1. Dapatkan folder root SPK PPPK
     const rootFolder = DriveApp.getFolderById(ROOT_FOLDER_ID);
 
     // 2. Dapatkan atau buat folder OPD
@@ -128,16 +130,36 @@ function doPost(e) {
     // 3. Dapatkan atau buat subfolder Unit Kerja
     const targetFolder = unitKerja ? getOrCreateSubFolder(opdFolder, unitKerja) : opdFolder;
 
-    // 4. Buat nama berkas bersih dan standar: SPK_[NIP]_[NAMA].pdf
-    const cleanNama = nama.replace(/[/\\\\?%*:|"<>]/g, " ").trim();
-    const cleanFileName = "SPK_" + (nip ? nip + "_" : "") + cleanNama + ".pdf";
+    // 4. Standarisasi nama berkas: SPK_[NIP]_[Nama].pdf
+    const cleanNip = (nip || "").replace(/[^0-9a-zA-Z]/g, "").trim();
+    const cleanNama = (nama || "").replace(/[/\\\\?%*:|"<>]/g, " ").replace(/\\s+/g, " ").trim();
+    let cleanFileName = "SPK_PPPK.pdf";
+    if (cleanNip && cleanNama) {
+      cleanFileName = "SPK_" + cleanNip + "_" + cleanNama + ".pdf";
+    } else if (cleanNip) {
+      cleanFileName = "SPK_" + cleanNip + ".pdf";
+    } else if (cleanNama) {
+      cleanFileName = "SPK_" + cleanNama + ".pdf";
+    }
 
-    // 5. Simpan berkas fisik ke subfolder yang tepat di Google Drive
+    // 5. Cek apakah berkas dengan nama yang sama sudah ada di folder tersebut
+    // Jika ada, pindahkan versi lama ke trash agar tidak terjadi file ganda yang membingungkan
+    const existingFiles = targetFolder.getFilesByName(cleanFileName);
+    while (existingFiles.hasNext()) {
+      const oldFile = existingFiles.next();
+      try {
+        oldFile.setTrashed(true);
+      } catch (trashErr) {
+        // Abaikan jika tidak diizinkan trash
+      }
+    }
+
+    // 6. Simpan berkas fisik ke subfolder yang tepat di Google Drive
     const decodedBytes = Utilities.base64Decode(fileBase64);
     const blob = Utilities.newBlob(decodedBytes, mimeType, cleanFileName);
     const savedFile = targetFolder.createFile(blob);
 
-    // Set agar dapat dilihat jika kebijakan domain mengizinkan
+    // 7. Berikan akses lihat jika kebijakan domain mengizinkan
     try {
       savedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     } catch(err) {
@@ -146,12 +168,13 @@ function doPost(e) {
 
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: "Berkas SPK berhasil disimpan ke Google Drive!",
+      message: "Berkas SPK berhasil disimpan ke Google Drive dengan format SPK_NIP_Nama.pdf!",
       fileId: savedFile.getId(),
       fileUrl: savedFile.getUrl(),
       downloadUrl: savedFile.getDownloadUrl(),
       folderUrl: targetFolder.getUrl(),
-      fileName: cleanFileName
+      fileName: cleanFileName,
+      folderPath: "SPK PPPK / " + opd + (unitKerja ? " / " + unitKerja : "")
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {

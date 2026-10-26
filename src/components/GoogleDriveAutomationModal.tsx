@@ -347,16 +347,24 @@ export const GoogleDriveAutomationModal: React.FC<GoogleDriveAutomationModalProp
           {activeTab === 'webapp' && (
             <div className="space-y-6">
               {/* Clarification about why files were not uploaded before */}
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm space-y-2">
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm space-y-2.5">
                 <div className="font-bold flex items-center gap-2 text-yellow-400 text-base">
                   <AlertCircle size={18} />
-                  Mengapa Sebelumnya Berkas Belum Masuk ke Google Drive?
+                  Mengapa Sebelumnya Berkas Belum Masuk ke Folder Google Drive?
                 </div>
                 <p className="text-zinc-300 leading-relaxed text-xs sm:text-sm">
-                  Google Drive merupakan penyimpanan awan terproteksi. Ketika teman-teman PPPK paruh waktu mengunggah berkas di halaman awal tanpa login akun Google, sistem web memerlukan <strong>Jembatan Aplikasi Web (Web App Bridge)</strong> agar berkas fisik PDF dapat langsung masuk dan disimpan ke dalam folder Google Drive Anda.
+                  Google Drive merupakan penyimpanan awan terproteksi. Ketika peserta PPPK mengunggah berkas dari halaman depan tanpa login Google, berkas tercatat di sistem SIM ASN namun memerlukan <strong>Jembatan Aplikasi Web (Web App Bridge)</strong> agar berkas fisik PDF dapat langsung otomatis tersimpan ke dalam folder Google Drive Anda (<span className="text-yellow-400 font-mono text-[11px]">OPD &gt; Unit Kerja</span>).
                 </p>
-                <p className="text-zinc-300 leading-relaxed text-xs sm:text-sm">
-                  Skrip Google Apps Script yang disediakan di Tab 1 sudah memiliki fungsi <code>doPost</code> untuk menerima berkas tersebut. Anda hanya perlu <strong>Menerapkan (Deploy)</strong> skrip tersebut sebagai Aplikasi Web satu kali saja.
+                <div className="p-3 bg-black/40 rounded-xl border border-yellow-400/20 text-xs space-y-1">
+                  <span className="text-yellow-400 font-bold uppercase tracking-wider text-[11px] block">
+                    ✨ Aturan Penamaan Berkas Terbaru: SPK_[NIP]_[Nama].pdf
+                  </span>
+                  <span className="text-zinc-300 block">
+                    Skrip Apps Script telah diperbarui otomatis! Setiap berkas yang diunggah peserta akan langsung disimpan dengan nama resmi standar BKPSDM: <code className="text-white font-bold bg-zinc-800 px-1.5 py-0.5 rounded">SPK_NIP_Nama.pdf</code>.
+                  </span>
+                </div>
+                <p className="text-zinc-400 leading-relaxed text-xs">
+                  Skrip di Tab 1 sudah dilengkapi fungsi <code>doPost</code> untuk menerima file dan menyimpannya ke folder yang tepat. Anda hanya perlu <strong>Menerapkan (Deploy)</strong> skrip sebagai Aplikasi Web satu kali saja di bawah ini.
                 </p>
               </div>
 

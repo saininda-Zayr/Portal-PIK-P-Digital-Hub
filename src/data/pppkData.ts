@@ -18,6 +18,7 @@ export interface SpkSubmissionRecord {
   opd: string;
   unitKerja: string;
   fileName: string;
+  originalFileName?: string;
   fileSize: number;
   fileType: string;
   status: string;
@@ -32,6 +33,28 @@ export interface SpkSubmissionRecord {
 export const SPK_DRIVE_ROOT_URL = 'https://drive.google.com/drive/folders/1feUjhSZy5yIe_KKBJ_DOJi3z39ROWr1e';
 export const SPK_DRIVE_FOLDER_ID = '1feUjhSZy5yIe_KKBJ_DOJi3z39ROWr1e';
 export const MAX_SPK_FILE_SIZE_BYTES = 1048576; // Strictly 1 MB
+
+/**
+ * Format standardized SPK file name according to BKPSDM policy:
+ * Format: SPK_[NIP]_[Nama].pdf
+ * Sanitizes illegal filename characters: / \ ? % * : | " < >
+ */
+export function formatSpkFileName(nip: string, nama: string): string {
+  const cleanNip = (nip || '').replace(/[^0-9a-zA-Z]/g, '').trim();
+  const cleanNama = (nama || '')
+    .replace(/[/\\?%*:|"<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (cleanNip && cleanNama) {
+    return `SPK_${cleanNip}_${cleanNama}.pdf`;
+  } else if (cleanNip) {
+    return `SPK_${cleanNip}.pdf`;
+  } else if (cleanNama) {
+    return `SPK_${cleanNama}.pdf`;
+  }
+  return 'SPK_PPPK.pdf';
+}
 
 export const ALL_PEGAWAI: PppkPegawai[] = rawPegawai as PppkPegawai[];
 export const ALL_OPD: OpdItem[] = rawOpd as OpdItem[];
