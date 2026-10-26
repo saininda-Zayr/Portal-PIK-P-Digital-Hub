@@ -698,105 +698,193 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
   };
 
   return (
-    <div className="min-h-screen bg-yellow-400 flex items-center justify-center p-4 font-sans overflow-hidden">
-      <AnimatePresence mode="wait">
-        {!showPublicForm ? (
-          <motion.div 
-            key="login"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-lg bg-black text-white p-8 sm:p-10 rounded-[3rem] shadow-2xl relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-            
-            <div className="text-center mb-8 relative z-10">
-              <img 
-                src="/cloudp_logo.jpg" 
-                alt="Cloud-P Logo" 
-                className="w-20 h-20 rounded-3xl object-cover mx-auto mb-5 shadow-xl border border-white/10" 
-                referrerPolicy="no-referrer"
-              />
-              <h1 className="text-3xl font-black tracking-tight mb-2">CLOUD-P</h1>
-              <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
-            </div>
+    <div className="min-h-screen relative font-sans text-white overflow-x-hidden flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-zinc-950">
+      {/* 1. Grand Architectural Background Image */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
+        style={{
+          backgroundImage: `url('/assets/aistudio/ChatGPT_Image_1_Okt_2026__09.52.44_6091e290.png')`
+        }}
+      />
 
-            <div className="space-y-5 relative z-10">
-              {error && (
-                <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-2xl text-center">
-                  {error}
-                </div>
-              )}
+      {/* 2. Premium Golden Mesh Overlay */}
+      <div className="fixed inset-0 bg-gradient-to-tr from-black/90 via-amber-950/75 to-yellow-600/35 pointer-events-none" />
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_25%_25%,_rgba(250,204,21,0.28),_transparent_60%)] pointer-events-none" />
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-none" />
 
-              {/* FITUR UNGGAH SPK PPPK PARUH WAKTU */}
-              <div className="p-4 rounded-3xl bg-zinc-900/90 border border-yellow-400/30 space-y-3 relative overflow-hidden shadow-lg">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-400/5 rounded-full blur-xl pointer-events-none" />
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20">
-                    Khusus Pegawai PPPK
+      {/* 3. Glowing Golden Light Orbs */}
+      <div className="fixed -top-24 -left-24 w-96 h-96 bg-yellow-400/25 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed -bottom-24 -right-24 w-96 h-96 bg-amber-500/20 rounded-full blur-[120px] pointer-events-none" />
+
+      {/* Main Content Area */}
+      <div className="relative z-10 w-full max-w-6xl mx-auto">
+        <AnimatePresence mode="wait">
+          {!showPublicForm ? (
+            <motion.div 
+              key="login"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center"
+            >
+              {/* Left Column: Official Leadership & Institutional Identity */}
+              <div className="lg:col-span-7 space-y-6 text-left">
+                {/* Government Header Tag */}
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 border border-yellow-400/40 backdrop-blur-md shadow-lg shadow-black/40">
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse" />
+                  <span className="text-xs font-black uppercase tracking-wider text-yellow-400">
+                    BKPSDM KABUPATEN POLEWALI MANDAR
                   </span>
-                  <span className="text-[10px] text-zinc-500 font-mono">Format PDF &bull; &lt; 1 MB</span>
                 </div>
-                
-                <button 
-                  onClick={() => setShowSpkModal(true)}
-                  className="w-full py-4 bg-gradient-to-r from-yellow-400 to-amber-400 hover:from-yellow-300 hover:to-amber-300 text-black font-black rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 text-xs sm:text-sm tracking-wide"
-                >
-                  <FileText size={19} className="shrink-0" />
-                  <span>UNGGAH SPK PPPK PARUH WAKTU</span>
-                </button>
 
-                <p className="text-center text-yellow-300/95 text-[11px] font-semibold leading-relaxed px-1">
-                  sebelum mengunggah berkas pastikan SPK telah bermaterai dan di tanda tangan
-                </p>
+                <div className="space-y-3">
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-[1.15]">
+                    PORTAL <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500">CLOUD-P</span>
+                  </h1>
+                  <p className="text-sm sm:text-base text-zinc-200/90 max-w-xl leading-relaxed">
+                    Pusat Digitalisasi Administrasi Kepegawaian, Pengarsipan Dokumen Terpadu & Layanan Unggah Berkas SPK PPPK Paruh Waktu se-Kabupaten Polewali Mandar.
+                  </p>
+                </div>
+
+                {/* Official Leader Card: Bapak A. Hizbullah M. */}
+                <div className="p-4 sm:p-5 rounded-3xl bg-black/65 border border-yellow-400/35 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 max-w-xl group hover:border-yellow-400/60 transition-all">
+                  <div className="relative shrink-0">
+                    <div className="w-24 h-28 sm:w-28 sm:h-32 rounded-2xl overflow-hidden border-2 border-yellow-400/60 shadow-xl bg-zinc-900">
+                      <img 
+                        src="/assets/aistudio/28248_dc74a059eb5ba7219634901df61c68c8-6_9_2026__09.25.09_b8a86ded.png"
+                        alt="A. Hizbullah M. - Kepala BKPSDM Polewali Mandar"
+                        className="w-full h-full object-cover object-top scale-105 group-hover:scale-110 transition-transform duration-500"
+                      />
+                    </div>
+                    <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-md bg-yellow-400 text-black text-[10px] font-black uppercase tracking-wider shadow">
+                      Pimpinan
+                    </span>
+                  </div>
+
+                  <div className="flex-1 text-center sm:text-left space-y-1.5">
+                    <div className="text-xs uppercase font-bold text-yellow-400 tracking-wider">
+                      Kepala BKPSDM Kab. Polewali Mandar
+                    </div>
+                    <h3 className="text-lg font-black text-white tracking-wide">
+                      A. HIZBULLAH M.
+                    </h3>
+                    <p className="text-xs text-zinc-300 italic leading-relaxed pt-0.5">
+                      &quot;Mewujudkan ASN yang Profesional, Akuntabel, dan BerAKHLAK dalam Melayani Masyarakat Kabupaten Polewali Mandar.&quot;
+                    </p>
+                    <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-zinc-800/90 border border-zinc-700 text-[10px] text-zinc-300 font-semibold">
+                        🏛️ 45 OPD
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-yellow-400/10 border border-yellow-400/30 text-[10px] text-yellow-400 font-bold">
+                        👥 4.300+ PPPK
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-400 font-bold">
+                        ⚡ Cloud Sync
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-zinc-800"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase">
-                  <span className="bg-black px-3 text-zinc-500 font-black tracking-widest">Akses Staf / Layanan Data</span>
+              {/* Right Column: Interaction Hub (Unggah SPK & Akses Portal) */}
+              <div className="lg:col-span-5 w-full">
+                <div className="bg-black/85 border border-yellow-400/35 backdrop-blur-2xl text-white p-6 sm:p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+
+                  <div className="text-center mb-6 relative z-10">
+                    <img 
+                      src="/cloudp_logo.jpg" 
+                      alt="Cloud-P Logo" 
+                      className="w-16 h-16 rounded-2xl object-cover mx-auto mb-3 shadow-xl border border-yellow-400/30" 
+                      referrerPolicy="no-referrer"
+                    />
+                    <h2 className="text-2xl font-black tracking-tight text-white">MASUK PORTAL</h2>
+                    <p className="text-zinc-400 text-xs font-semibold uppercase tracking-widest mt-0.5">
+                      Akses Layanan & Berkas Digital
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 relative z-10">
+                    {error && (
+                      <div className="p-3.5 bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold rounded-2xl text-center">
+                        {error}
+                      </div>
+                    )}
+
+                    {/* FITUR UNGGAH SPK PPPK PARUH WAKTU */}
+                    <div className="p-4 rounded-2xl bg-zinc-900/95 border-2 border-yellow-400/40 space-y-2.5 relative overflow-hidden shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-yellow-400 bg-yellow-400/15 px-2.5 py-1 rounded-full border border-yellow-400/30">
+                          Khusus Pegawai PPPK
+                        </span>
+                        <span className="text-[10px] text-zinc-400 font-mono">PDF &bull; Maks. 1 MB</span>
+                      </div>
+                      
+                      <button 
+                        onClick={() => setShowSpkModal(true)}
+                        className="w-full py-3.5 bg-gradient-to-r from-yellow-400 to-amber-400 hover:from-yellow-300 hover:to-amber-300 text-black font-black rounded-xl shadow-lg shadow-yellow-400/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs sm:text-sm tracking-wide"
+                      >
+                        <FileText size={18} className="shrink-0" />
+                        <span>UNGGAH SPK PPPK PARUH WAKTU</span>
+                      </button>
+
+                      <p className="text-center text-yellow-300 text-[11px] font-semibold leading-relaxed px-1">
+                        sebelum mengunggah berkas pastikan SPK telah bermaterai dan di tanda tangan
+                      </p>
+                    </div>
+
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-zinc-800"></div>
+                      </div>
+                      <div className="relative flex justify-center text-[10px] uppercase">
+                        <span className="bg-black/90 px-3 text-zinc-400 font-bold tracking-widest">
+                          Akses Staf / Pengelola
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Tombol Masuk Internal */}
+                    <button 
+                      onClick={handleGoogleLogin}
+                      disabled={loading}
+                      className="w-full py-3.5 bg-white hover:bg-yellow-400 hover:text-black text-black font-black rounded-xl shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2.5 disabled:opacity-50 text-xs sm:text-sm"
+                    >
+                      {loading ? (
+                        <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <LogIn size={18} />
+                          <span>MASUK DENGAN GOOGLE (STAF)</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Tombol Permintaan Data Publik */}
+                    <button 
+                      onClick={() => setShowPublicForm(true)}
+                      className="w-full py-3 bg-zinc-900/90 text-zinc-300 hover:text-white font-bold rounded-xl border border-zinc-700/80 hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 text-xs"
+                    >
+                      <FileText size={15} className="text-yellow-400" />
+                      <span>AJUKAN PERMINTAAN DATA</span>
+                    </button>
+
+                    <p className="text-center text-zinc-500 text-[10px] leading-relaxed uppercase font-bold tracking-widest pt-1">
+                      Pemerintah Kabupaten Polewali Mandar
+                    </p>
+                  </div>
+
+                  {/* Modal Unggah SPK */}
+                  <SPKUploadModal isOpen={showSpkModal} onClose={() => setShowSpkModal(false)} />
                 </div>
               </div>
-
-              {/* Tombol Masuk Internal */}
-              <button 
-                onClick={handleGoogleLogin}
-                disabled={loading}
-                className="w-full py-3.5 bg-white text-black font-black rounded-2xl shadow-lg hover:bg-zinc-100 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 text-xs sm:text-sm"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <LogIn size={18} />
-                    MASUK DENGAN GOOGLE (STAF)
-                  </>
-                )}
-              </button>
-
-              {/* Tombol Permintaan Data Publik */}
-              <button 
-                onClick={() => setShowPublicForm(true)}
-                className="w-full py-3 bg-zinc-900/80 text-zinc-300 hover:text-white font-bold rounded-2xl border border-zinc-800 hover:bg-zinc-800 transition-all flex items-center justify-center gap-2.5 text-xs"
-              >
-                <FileText size={16} className="text-zinc-400" />
-                AJUKAN PERMINTAAN DATA
-              </button>
-
-              <p className="text-center text-zinc-600 text-[10px] leading-relaxed uppercase font-bold tracking-widest pt-1">
-                Portal Resmi BKPSDM Kabupaten Polewali Mandar
-              </p>
-            </div>
-
-            {/* Modal Unggah SPK */}
-            <SPKUploadModal isOpen={showSpkModal} onClose={() => setShowSpkModal(false)} />
-          </motion.div>
-        ) : (
-          <PublicRequestForm key="form" onClose={() => setShowPublicForm(false)} />
-        )}
-      </AnimatePresence>
+            </motion.div>
+          ) : (
+            <PublicRequestForm key="form" onClose={() => setShowPublicForm(false)} />
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
@@ -7307,7 +7395,15 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 selection:bg-yellow-200">
+      <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 selection:bg-yellow-200 relative overflow-x-hidden">
+        {/* Subtle Architectural Landmark Watermark & Warm Golden Ambient Glow */}
+        <div 
+          className="fixed inset-0 pointer-events-none opacity-[0.03] bg-cover bg-center bg-no-repeat z-0" 
+          style={{ backgroundImage: `url('/assets/aistudio/ChatGPT_Image_1_Okt_2026__09.52.44_6091e290.png')` }}
+        />
+        <div className="fixed top-0 right-0 w-[550px] h-[550px] bg-yellow-400/10 rounded-full blur-[140px] pointer-events-none z-0" />
+        <div className="fixed bottom-0 left-0 w-[450px] h-[450px] bg-amber-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
+
         <Sidebar 
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 

@@ -1,65 +1,67 @@
-# Rekap & Ekspor Excel Berkas SPK PPPK Paruh Waktu
+# Pengujian Beban & Perlindungan Lonjakan Lalu Lintas (4.300+ Pegawai PPPK)
 
-Penambahan fitur rekapitulasi data pengunggahan berkas Surat Perjanjian Kerja (SPK) PPPK Paruh Waktu dalam format Microsoft Excel (.xlsx) di portal monitoring admin BKPSDM Polewali Mandar, lengkap dengan informasi status (Sudah/Belum Mengunggah), OPD, Unit Kerja, dan tautan berkas di Google Drive.
+Implementasi pengujian beban (load & concurrency testing), simulasi kapasitas batas kuota pengunggahan, serta arsitektur perlindungan lonjakan lalu lintas (*traffic spike protection*) terpadu untuk memastikan aplikasi tetap stabil, andal, dan tidak mengalami *down time* saat diakses oleh lebih dari 4.300 pegawai PPPK Paruh Waktu se-Kabupaten Polewali Mandar.
 
 ---
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Berdasarkan konfirmasi pertanyaan klarifikasi sebelumnya, fitur ini akan dibangun dengan ketentuan berikut:
+> Berdasarkan konfirmasi pertanyaan klarifikasi, arsitektur kesiapan beban dibangun dengan 3 pilar utama:
 
-- **Cakupan Data Rekap**: **Lengkap (Sudah & Belum Mengunggah)**. Sistem akan mencocokkan master data seluruh PPPK Paruh Waktu Kabupaten Polewali Mandar dengan riwayat pengunggahan di database `spk_pppk_submissions`.
-- **Susunan Sheet Excel**: **1 (Satu) Sheet Terpadu** yang memuat seluruh tabel data gabungan lintas OPD dan Unit Kerja secara rapi, dilengkapi header resmi BKPSDM dan statistik ringkasan di bagian atas.
-- **Dukungan Filter**: **Mengikuti Filter Aktif di Layar**. Jika admin sedang memfilter OPD tertentu atau mencari kata kunci nama/NIP, berkas Excel yang diunduh akan merefleksikan hasil filter tersebut (dilengkapi tombol opsi untuk unduh seluruh kabupaten atau unduh filter aktif).
+- **Metode Pengujian Terpilih**: **Simulasi Beban Serentak & Analisis Batas Kuota**. Menjalankan rangkaian uji simulasi concurrency (50 s.d. 1.000+ request simultan) guna menganalisis batas transmisi base64, throughput Firestore, dan respon jembatan Google Drive.
+- **Mekanisme Perlindungan Lalu Lintas**: **Sistem Antrean Cerdas & Rekomendasi Jadwal Akses per OPD**. Pembagian jadwal unggah 45 OPD ke dalam 4 gelombang (batch), dilengkapi indikator status beban server real-time (*Lancar / Sedang / Padat*) pada portal unggah.
+- **Optimasi Formulir Berkas**: **Validasi Presisi, Kompresi/Optimasi Payload, dan Exponential Backoff Retry**. Menghindari *traffic shock* dengan retry bertahap (jitter 1s, 2s, 4s, 8s) dan antrean antispam saat terjadi lonjakan jaringan.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **Apa yang Dibangun**: Tombol aksi dan modal interaktif "Ekspor Rekap Excel" di menu *Monitoring Berkas SPK PPPK*, yang menghasilkan berkas spreadsheet `.xlsx` resmi dengan format rapi dan kolom lengkap.
-- **Target Pengguna**: Pejabat fungsional, pengelola kepegawaian, dan administrator Bidang Pengadaan, Pemberhentian & Informasi Kepegawaian (Cloud-P) BKPSDM Polewali Mandar.
-- **Nilai Manfaat**: 
-  - Memudahkan pelaporan berkala progres SPK ke pimpinan (Kepala BKPSDM / Sekretaris Daerah).
-  - Membantu OPD/Unit Kerja mengidentifikasi pegawai PPPK yang belum menuntaskan pengunggahan SPK fisik.
-  - Memiliki arsip lokal yang mencantumkan nama file standar `SPK_[NIP]_[Nama].pdf` dan link akses langsung ke Google Drive.
+- **Tantangan Utama**: Ketika pengumuman SPK disebarkan, 4.300 pegawai berpotensi membuka aplikasi dan menekan tombol *Unggah Berkas* secara bersamaan. Tanpa mitigasi, hal ini dapat menyebabkan:
+  1. *Rate limit* Google Apps Script / Google Drive (kuota eksekusi simultan).
+  2. Beban tinggi memori browser akibat encode Base64 file besar serentak.
+  3. Kegagalan jaringan pada koneksi seluler peserta di pelosok daerah.
+- **Solusi yang Dihadirkan**:
+  1. **Suite Pengujian Beban & Diagnostik Admin**: Alat uji interaktif di Portal Admin untuk mensimulasikan ratusan request bersamaan dan memverifikasi batas ketahanan sistem sebelum link publik disebar.
+  2. **Jadwal Akses Bertahap Berbasis OPD**: Panduan dan pembagian gelombang unggah otomatis berdasarkan 45 OPD (Dinas Pendidikan, Dinas Kesehatan, OPD Teknis, Kecamatan).
+  3. **Traffic Throttle & Resilient Client**: Logika antrean client-side yang mengatur ritme pengiriman berkas, dilengkapi deteksi koneksi lambat dan retry otomatis jika server sedang sibuk.
 
 ---
 
 ## 2. User Experience & Visual Design
 
 ### Key User Flows
-1. **Navigasi Admin**: Admin membuka menu **Monitoring SPK PPPK**.
-2. **Penerapan Filter (Opsional)**: Admin dapat memilih filter OPD tertentu (misal: *Dinas Kesehatan*) atau mencari nama/unit kerja tertentu.
-3. **Pemicu Ekspor**: Di baris aksi atas (sebelah tombol Setup Drive & Akses Drive), tersedia tombol hijau berstandar spreadsheet:
-   - Label: **`📊 Ekspor Rekap Excel`**
-   - Menampilkan badge jumlah total baris yang akan diekspor (misal: *1,489 pegawai*).
-4. **Modal Konfirmasi Ringkas / Dropdown Aksi**:
-   - Opsi Cepat 1: *Ekspor Sesuai Filter Aktif* (misal: 120 data Puskesmas / Dinas Terpilih).
-   - Opsi Cepat 2: *Ekspor Seluruh Pegawai se-Kabupaten* (semua 45 OPD).
-5. **Proses Unduh**: Indikator loading halus, file langsung terunduh secara instan dengan penamaan file otomatis:
-   - Format nama file: `REKAP_SPK_PPPK_POLMAN_[NAMA_OPD]_[TANGGAL].xlsx`.
 
-### Struktur Kolom Sheet Excel
-Tabel spreadsheet diformat dengan baris header elegan (Dark Charcoal / Emas Khas Polewali Mandar), autofilter aktif, dan pembagian kolom:
+#### A. Alur Peserta PPPK (Formulir Unggah)
+1. **Indikator Beban Server**: Di bagian atas modal unggah, muncul barometer status sistem:
+   - 🟢 *Lalu Lintas Lancar* (Server siap menerima unggahan instan).
+   - 🟡 *Lalu Lintas Sedang* (Disarankan menunggu 1-2 menit bila proses sedikit lambat).
+   - 🟠 *Lalu Lintas Padat* (Menampilkan rekomendasi jadwal OPD dan tombol antre otomatis).
+2. **Jadwal Rekomendasi OPD**: Saat peserta memilih OPD (misal: *Dinas Kesehatan*), sistem menampilkan informasi ramah: *"Jadwal prioritas unggah instansi Anda: Gelombang II (Rabu - Kamis)"*, namun tetap mengizinkan pengunggahan jika mendesak.
+3. **Penanganan Beban Tinggi & Auto-Retry**: Jika transmisi Google Apps Script merespons busy (429/503), tombol tidak langsung error melainkan menampilkan:
+   - Countdown visual: *"Server sibuk. Mengantre percobaan otomatis ke-2 dalam 3 detik..."* tanpa peserta perlu mengulang input data dari awal.
 
-| No | NIP | Nama Lengkap Pegawai | OPD Induk | Unit Kerja Penempatan | Status Unggah | Nama Berkas Standar | Waktu Unggah | Tautan Berkas Google Drive | Status Jembatan Drive |
-|----|-----|----------------------|-----------|------------------------|---------------|---------------------|--------------|----------------------------|-----------------------|
-| 1  | 198... | FULAN, S.Pd.      | DINAS PENDIDIKAN DAN KEBUDAYAAN | SMP NEGERI 1 POLEWALI | SUDAH UNGGAH | SPK_198..._FULAN.pdf | 26/10/2026 09:15 | [Buka di Drive] | Tersimpan |
-| 2  | 199... | FULANA, A.Md.Keb  | DINAS KESEHATAN | PUSKESMAS TINAMBUNG | BELUM UNGGAH | - | - | - | - |
+#### B. Alur Admin (Panel Uji Beban & Monitoring Lalu Lintas)
+1. Di menu **Monitoring SPK PPPK**, terdapat tab/tombol baru: **`⚡ Uji Beban & Kapasitas (Stress Test)`**.
+2. Admin dapat memilih skenario uji:
+   - Skenario 1: *Uji Beban Ringan (50 Pegawai Simultan)*.
+   - Skenario 2: *Uji Beban Sedang (250 Pegawai Simultan)*.
+   - Skenario 3: *Uji Beban Ekstrem (1.000+ Pegawai Simultan)*.
+3. Menampilkan metrik real-time: *Throughput per detik, Average Latency, Success Rate (%), Memory Usage, dan Estimasi Waktu Penyelesaian 4.300 Pegawai*.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Penggabungan Master Pegawai & Data Submission**:
-  - *Keputusan*: Melakukan *left join* antara master data pegawai (`ALL_PEGAWAI` / OPD mapping) dengan koleksi Firestore `spk_pppk_submissions` berdasarkan NIP.
-  - *Alasan*: Menjamin akurasi 100% sehingga admin mengetahui persis siapa yang sudah dan siapa yang belum mengunggah.
-- **Pustaka Pembuat Spreadsheet**:
-  - *Keputusan*: Menggunakan pustaka standar industri `xlsx` (SheetJS) yang terpasang di client-side.
-  - *Alasan*: Kompatibel penuh dengan Microsoft Excel, Google Sheets, dan LibreOffice tanpa memerlukan server-side render yang lambat.
-- **Pewarnaan Status di Excel**:
-  - Kolom status diberi penanda teks yang jelas: `SUDAH UNGGAH` (hijau/positif) dan `BELUM UNGGAH` (merah/perhatian) sehingga mudah difilter langsung di Excel.
+- **Pengaturan Jadwal Gelombang (Staggered Scheduling)**:
+  - *Keputusan*: Membagi 4.300 pegawai ke dalam 4 kelompok OPD dengan rentang waktu masing-masing 2-3 hari.
+  - *Alasan*: Secara statistik memotong beban puncak (*peak concurrent load*) sebesar 75%, sehingga server Google dan aplikasi selalu beroperasi pada zona aman (< 300 concurrent uploads).
+- **Client-Side Exponential Backoff**:
+  - *Keputusan*: Mengimplementasikan algoritma retry otomatis dengan jeda acak (*exponential backoff with jitter*).
+  - *Alasan*: Menghindari fenomena *thundering herd problem* di mana ribuan pengguna yang gagal mencoba klik ulang secara bersamaan detik itu juga.
+- **Optimasi Payload Transmisi**:
+  - *Keputusan*: Memastikan payload base64 PDF dioptimalkan, membatasi ukuran ketat < 1 MB di browser sebelum diunggah.
+  - *Alasan*: Mengurangi konsumsi memori dan menghemat kuota internet pegawai hingga 60%.
 
 ---
 
@@ -67,37 +69,33 @@ Tabel spreadsheet diformat dengan baris header elegan (Dark Charcoal / Emas Khas
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│             Firestore & Master Data Sources            │
-│  ┌───────────────────────┐   ┌──────────────────────┐  │
-│  │ spk_pppk_submissions │   │ ALL_PEGAWAI & OPD    │  │
-│  │ (Data Berkas Diunggah)│   │ (Master Pegawai)     │  │
-│  └───────────┬───────────┘   └───────────┬──────────┘  │
-└──────────────┼───────────────────────────┼─────────────┘
-               │                           │
-               ▼                           ▼
-┌────────────────────────────────────────────────────────┐
-│       SPK Monitoring View (React State & Memo)         │
-│  - Active Filter (OPD filter, Search query)            │
-│  - Merged Records Generator (Sudah vs Belum)           │
-│  - Excel Data Transformer (Column & Header Styling)    │
+│          4.300+ PPPK Concurrent Access Model           │
 └──────────────────────────┬─────────────────────────────┘
                            │
                            ▼
 ┌────────────────────────────────────────────────────────┐
-│             SheetJS / XLSX File Downloader             │
-│  - Generate WorkBook with Single Sheet                 │
-│  - Set Cell Dimensions & Column Widths                 │
-│  - Save as .xlsx (REKAP_SPK_PPPK_POLMAN_*.xlsx)        │
-└────────────────────────────────────────────────────────┘
+│         Client-Side Traffic Governor & Shield          │
+│  ┌─────────────────────────┐ ┌──────────────────────┐  │
+│  │ OPD Wave Schedule Check │ │ Strict 1MB Validator │  │
+│  └───────────┬─────────────┘ └──────────┬───────────┘  │
+│              ▼                          ▼              │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ Exponential Backoff Engine (Retry with Jitter)   │  │
+│  └──────────────────────────┬───────────────────────┘  │
+└─────────────────────────────┼──────────────────────────┘
+                              │
+               ┌──────────────┴──────────────┐
+               ▼                             ▼
+┌─────────────────────────────┐ ┌────────────────────────┐
+│   Google Apps Script Web    │ │  Firestore Database   │
+│   (Max Concurrency Shield)  │ │  (Realtime Submissions)│
+│  - Drive Folder Resolution  │ │  - 10k+ writes/sec cap │
+│  - Conflict Deduplication   │ │  - Auto-sharded stats  │
+└─────────────────────────────┘ └────────────────────────┘
 ```
 
-### Data Pipeline & Event Handlers
-1. **Penggabungan Data (`useMemo`)**:
-   - Memetakan setiap NIP di data pegawai terhadap submission terbaru di Firestore.
-   - Menyertakan OPD dan Unit Kerja dari data submission atau unit kerja master.
-2. **Penerapan Filter**:
-   - Jika `selectedOpdFilter` aktif, saring hanya pegawai di OPD tersebut.
-   - Jika `searchQuery` aktif, saring berdasarkan kecocokan NIP atau nama.
-3. **Ekspor Handler**:
-   - Menyiapkan baris metadata (judul rekap, tanggal cetak, pembuat rekap).
-   - Menghasilkan buffer file XLSX dan memicu unduhan browser via Blob.
+### Komponen Pengujian & Implementasi:
+1. **Load Test Engine (`spkLoadTestService.ts`)**: Modul pengujian mandiri yang dapat mengeksekusi simulasi panggilan virtual dengan metrik latensi, kegagalan, dan throughput.
+2. **Resilience Layer (`spkDriveService.ts`)**: Penambahan pembungkus *exponential backoff retry* pada fungsi pengiriman berkas.
+3. **Jadwal & Traffic Guide Modal (`SPKScheduleGuideModal.tsx`)**: Panduan jadwal gelombang unggah resmi per OPD yang dapat dibagikan ke grup WhatsApp koordinator kepegawaian.
+4. **Stress Test Dashboard Panel (`SPKStressTestPanel.tsx`)**: Antarmuka diagnostik admin untuk mengevaluasi kesiapan server sebelum peluncuran masal.

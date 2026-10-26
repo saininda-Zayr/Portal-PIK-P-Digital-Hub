@@ -17,7 +17,9 @@ import {
   ArrowRight,
   Info,
   Check,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -31,6 +33,7 @@ import {
   MAX_SPK_FILE_SIZE_BYTES,
   formatSpkFileName
 } from '../data/pppkData';
+import { getOpdSchedule } from '../data/opdScheduleData';
 import { getSpkAppsScriptUrl, uploadSpkToGoogleDriveWebapp } from '../services/spkDriveService';
 
 interface SPKUploadModalProps {
@@ -53,6 +56,7 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
   const [submittingStatus, setSubmittingStatus] = useState<string>('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [retryNotice, setRetryNotice] = useState<{ attempt: number; maxAttempts: number; delayMs: number; message: string } | null>(null);
 
   // Drive integration check state
   const [isDriveConfigured, setIsDriveConfigured] = useState<boolean | null>(null);
@@ -102,6 +106,12 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
     return searchPegawai(pegawaiQuery, 20);
   }, [pegawaiQuery]);
 
+  // Designated wave schedule for the selected OPD
+  const opdSchedule = useMemo(() => {
+    if (!selectedOpd) return undefined;
+    return getOpdSchedule(selectedOpd);
+  }, [selectedOpd]);
+
   if (!isOpen) return null;
 
   // Handle file validation
@@ -150,12 +160,14 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
     setSubmitError(null);
     setSubmitSuccess(false);
     setLastSubmission(null);
+    setRetryNotice(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+    setRetryNotice(null);
 
     if (!selectedPegawai) {
       setSubmitError('Silakan pilih NIP dan Nama Pegawai terlebih dahulu.');
@@ -199,7 +211,12 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
             nama: selectedPegawai.nama,
             opd: selectedOpd,
             unitKerja: selectedUnitKerja,
-            file
+            file,
+            onRetryAttempt: (attempt, maxAttempts, delayMs, reason) => {
+              const seconds = Math.ceil(delayMs / 1000);
+              setRetryNotice({ attempt, maxAttempts, delayMs, message: reason });
+              setSubmittingStatus(`Server sibuk (Percobaan ${attempt}/${maxAttempts}). Mengantre ulang dalam ${seconds} detik...`);
+            }
           });
 
           if (driveResult.success) {
@@ -208,12 +225,14 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
             driveFileId = driveResult.fileId || '';
             driveSyncStatus = 'synced';
             submissionStatus = 'Tersimpan di Google Drive';
+            setRetryNotice(null);
           }
         } catch (driveErr: any) {
           console.warn('Gagal menyimpan berkas ke Google Drive Web App:', driveErr);
           driveSyncStatus = 'error';
           driveSyncError = driveErr.message || 'Gagal mengirim berkas ke Google Drive.';
           submissionStatus = 'Tercatat di SIM ASN (Gagal Sinkron Drive)';
+          setRetryNotice(null);
         }
       } else {
         // Web App URL is not yet configured by admin
@@ -273,6 +292,7 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
     } finally {
       setIsSubmitting(false);
       setSubmittingStatus('');
+      setRetryNotice(null);
     }
   };
 
@@ -618,6 +638,27 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
                   </select>
                   <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
                 </div>
+
+                {/* OPD Wave Schedule Traffic Recommendation */}
+                {selectedOpd && opdSchedule && (
+                  <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-start gap-3 text-xs animate-in fade-in">
+                    <div className="w-8 h-8 rounded-xl bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <Calendar size={16} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-yellow-400">{opdSchedule.waveName}</span>
+                        <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 font-medium text-[11px] border border-zinc-700 flex items-center gap-1">
+                          <Clock size={11} className="text-yellow-400" />
+                          {opdSchedule.recommendedDays}
+                        </span>
+                      </div>
+                      <p className="text-zinc-400 mt-1 leading-relaxed text-[11px]">
+                        Rekomendasi prioritas gelombang ini dirancang untuk mencegah penumpukan 4.300+ pegawai. Anda tetap dapat melanjutkan pengunggahan sekarang.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 3. Unit Kerja Dropdown */}
@@ -755,6 +796,23 @@ export const SPKUploadModal: React.FC<SPKUploadModalProps> = ({ isOpen, onClose 
                   Folder: {SPK_DRIVE_FOLDER_ID.slice(0, 10)}...
                 </span>
               </div>
+
+              {/* Intelligent Queue & Exponential Backoff Notice */}
+              {retryNotice && (
+                <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3 animate-pulse">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 text-amber-400 mt-0.5">
+                    <Clock size={16} />
+                  </div>
+                  <div>
+                    <div className="font-bold text-amber-300">
+                      Sistem Sedang Mengantre Berkas Secara Aman (Percobaan {retryNotice.attempt}/{retryNotice.maxAttempts})
+                    </div>
+                    <p className="text-amber-200/80 text-[11px] mt-0.5 leading-relaxed">
+                      Lalu lintas server atau Google Drive sedang padat. Sistem secara otomatis melakukan <em>retry bertahap</em> dengan jeda acak. Mohon jangan menutup halaman ini.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Submit Button */}
               <div className="pt-2">

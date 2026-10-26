@@ -1,6 +1,6 @@
 {
-  "summary":  "Rencana implementasi fitur Rekap dan Ekspor Excel Berkas SPK PPPK Paruh Waktu pada Dashboard Portal Admin SIM ASN BKPSDM Polewali Mandar. Rekap mencakup status lengkap (sudah dan belum mengunggah), OPD, Unit Kerja, NIP, Nama, nama berkas terstandarisasi, tautan Google Drive, dan mengikuti filter aktif.",
-  "updatedAt":  "2026-10-26T02:50:35.715241531Z",
+  "summary":  "Rencana komprehensif pengujian beban (load & stress test) untuk 4.300+ pegawai PPPK Paruh Waktu serta penerapan mekanisme perlindungan lonjakan lalu lintas (traffic spike safeguard), sistem antrean cerdas, rekomendasi jadwal unggah per OPD, kompresi berkas, dan retry bertahap (exponential backoff).",
+  "updatedAt":  "2026-10-26T03:19:05.410537693Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

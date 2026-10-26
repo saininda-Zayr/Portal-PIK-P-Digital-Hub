@@ -17,7 +17,9 @@ import {
   Cloud,
   Sparkles,
   FileSpreadsheet,
-  Download
+  Download,
+  Activity,
+  Gauge
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -25,6 +27,8 @@ import { SPK_DRIVE_ROOT_URL, SpkSubmissionRecord, getOpdNames } from '../data/pp
 import { getSpkAppsScriptUrl } from '../services/spkDriveService';
 import { GoogleDriveAutomationModal } from './GoogleDriveAutomationModal';
 import { SPKExcelExportModal } from './SPKExcelExportModal';
+import { SPKStressTestModal } from './SPKStressTestModal';
+import { SPKScheduleGuideModal } from './SPKScheduleGuideModal';
 
 interface SPKMonitoringViewProps {
   adminGoogleAccessToken?: string | null;
@@ -41,6 +45,8 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
   const [selectedOpdFilter, setSelectedOpdFilter] = useState('');
   const [isAutomationModalOpen, setIsAutomationModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isStressTestModalOpen, setIsStressTestModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isDriveConnected, setIsDriveConnected] = useState<boolean | null>(null);
 
   const opdList = useMemo(() => getOpdNames(), []);
@@ -146,10 +152,28 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap self-start md:self-auto">
+          <div className="flex items-center gap-2.5 flex-wrap self-start md:self-auto">
+            <button
+              onClick={() => setIsStressTestModalOpen(true)}
+              className="px-4 py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shadow-amber-500/20 shrink-0"
+              title="Jalankan simulasi beban dan uji kapasitas serentak 4.300+ pegawai"
+            >
+              <Activity size={16} />
+              <span>⚡ Uji Beban & Kapasitas</span>
+            </button>
+
+            <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-yellow-400 border border-yellow-400/40 hover:border-yellow-400 font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shrink-0"
+              title="Lihat pembagian 4 gelombang jadwal unggah per OPD"
+            >
+              <Calendar size={16} />
+              <span>📅 Jadwal Gelombang OPD</span>
+            </button>
+
             <button
               onClick={() => setIsExportModalOpen(true)}
-              className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shadow-emerald-600/25 shrink-0"
+              className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shadow-emerald-600/25 shrink-0"
               title="Ekspor Rekap Berkas ke Excel (.xlsx)"
             >
               <FileSpreadsheet size={16} />
@@ -158,20 +182,20 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
 
             <button
               onClick={() => setIsAutomationModalOpen(true)}
-              className="px-5 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-yellow-400 border border-yellow-400/40 hover:border-yellow-400 font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shrink-0"
+              className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 hover:border-zinc-500 font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shrink-0"
             >
               <Sparkles size={16} />
-              <span>⚡ Setup Folder & Web App Drive</span>
+              <span>Setup Drive</span>
             </button>
 
             <a
               href={SPK_DRIVE_ROOT_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-5 py-3.5 bg-yellow-400 hover:bg-yellow-300 text-black font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shadow-yellow-400/20 shrink-0"
+              className="px-4 py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shadow-yellow-400/20 shrink-0"
             >
               <FolderOpen size={16} />
-              <span>Akses Folder Google Drive</span>
+              <span>Folder Drive</span>
               <ExternalLink size={14} />
             </a>
           </div>
@@ -218,7 +242,7 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
       ) : null}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-zinc-200/80 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block">Total SPK Terunggah</span>
@@ -233,9 +257,22 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
 
         <div className="bg-white p-5 rounded-3xl border border-zinc-200/80 shadow-sm flex items-center justify-between">
           <div>
+            <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block">Target Kapasitas</span>
+            <span className="text-2xl sm:text-3xl font-black text-amber-600 mt-1 block">
+              4.300+
+            </span>
+            <span className="text-[11px] text-zinc-500 font-medium">Pegawai &bull; 4 Gelombang</span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+            <Users size={24} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-zinc-200/80 shadow-sm flex items-center justify-between">
+          <div>
             <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block">OPD Pengunggah</span>
             <span className="text-2xl sm:text-3xl font-black text-zinc-900 mt-1 block">
-              {stats.uniqueOpd}
+              {stats.uniqueOpd} <span className="text-sm font-normal text-zinc-400">/ 45</span>
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-zinc-100 text-zinc-700 flex items-center justify-center">
@@ -245,13 +282,14 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
 
         <div className="bg-white p-5 rounded-3xl border border-zinc-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block">Unit Kerja Terdata</span>
-            <span className="text-2xl sm:text-3xl font-black text-zinc-900 mt-1 block">
-              {stats.uniqueUnits}
+            <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block">Proteksi Transmisi</span>
+            <span className="text-lg font-black text-emerald-600 mt-1 block">
+              Antrean Cerdas
             </span>
+            <span className="text-[11px] text-zinc-500 font-medium">Backoff + Jitter Aktif</span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-            <Briefcase size={24} />
+            <Gauge size={24} />
           </div>
         </div>
       </div>
@@ -447,6 +485,22 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
         onClose={() => setIsAutomationModalOpen(false)}
         adminGoogleAccessToken={adminGoogleAccessToken}
         onConnectAdminDrive={onConnectAdminDrive}
+      />
+
+      {/* Stress & Concurrency Test Modal */}
+      <SPKStressTestModal
+        isOpen={isStressTestModalOpen}
+        onClose={() => setIsStressTestModalOpen(false)}
+        onOpenScheduleGuide={() => {
+          setIsStressTestModalOpen(false);
+          setIsScheduleModalOpen(true);
+        }}
+      />
+
+      {/* OPD Wave Schedule Guide Modal */}
+      <SPKScheduleGuideModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
       />
     </div>
   );
