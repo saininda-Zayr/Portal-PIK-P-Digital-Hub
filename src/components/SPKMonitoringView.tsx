@@ -15,13 +15,16 @@ import {
   Calendar,
   FolderPlus,
   Cloud,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet,
+  Download
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { SPK_DRIVE_ROOT_URL, SpkSubmissionRecord, getOpdNames } from '../data/pppkData';
 import { getSpkAppsScriptUrl } from '../services/spkDriveService';
 import { GoogleDriveAutomationModal } from './GoogleDriveAutomationModal';
+import { SPKExcelExportModal } from './SPKExcelExportModal';
 
 interface SPKMonitoringViewProps {
   adminGoogleAccessToken?: string | null;
@@ -37,6 +40,7 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOpdFilter, setSelectedOpdFilter] = useState('');
   const [isAutomationModalOpen, setIsAutomationModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDriveConnected, setIsDriveConnected] = useState<boolean | null>(null);
 
   const opdList = useMemo(() => getOpdNames(), []);
@@ -143,6 +147,15 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
           </div>
 
           <div className="flex items-center gap-3 flex-wrap self-start md:self-auto">
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shadow-emerald-600/25 shrink-0"
+              title="Ekspor Rekap Berkas ke Excel (.xlsx)"
+            >
+              <FileSpreadsheet size={16} />
+              <span>📊 Rekap Excel</span>
+            </button>
+
             <button
               onClick={() => setIsAutomationModalOpen(true)}
               className="px-5 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-yellow-400 border border-yellow-400/40 hover:border-yellow-400 font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-2 transition shadow-lg shrink-0"
@@ -284,6 +297,15 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
               Reset Filter
             </button>
           )}
+
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm shrink-0"
+            title="Unduh Rekap Excel Sesuai Filter"
+          >
+            <Download size={15} />
+            <span>Ekspor Excel</span>
+          </button>
         </div>
       </div>
 
@@ -409,6 +431,15 @@ export const SPKMonitoringView: React.FC<SPKMonitoringViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* SPK Excel Export Modal */}
+      <SPKExcelExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        submissions={submissions}
+        activeOpdFilter={selectedOpdFilter}
+        activeSearchQuery={searchQuery}
+      />
 
       {/* Google Drive Automation Modal */}
       <GoogleDriveAutomationModal

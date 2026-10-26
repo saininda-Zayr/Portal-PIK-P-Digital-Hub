@@ -27,6 +27,8 @@ export interface SpkSubmissionRecord {
   driveFileUrl?: string | null;
   driveFolderUrl?: string | null;
   driveFileId?: string | null;
+  driveSyncStatus?: string | null;
+  driveSyncError?: string | null;
   uploadedAt: string;
 }
 

@@ -1,6 +1,6 @@
 {
-  "summary":  "Rencana implementasi kategorisasi level akses pengguna (Super Admin, Admin Bidang, Staf Operator, Viewer) pada Manajemen User dengan kontrol menu navigasi dan proteksi izin hapus data.",
-  "updatedAt":  "2026-10-23T16:28:25.621963279Z",
+  "summary":  "Rencana implementasi fitur Rekap dan Ekspor Excel Berkas SPK PPPK Paruh Waktu pada Dashboard Portal Admin SIM ASN BKPSDM Polewali Mandar. Rekap mencakup status lengkap (sudah dan belum mengunggah), OPD, Unit Kerja, NIP, Nama, nama berkas terstandarisasi, tautan Google Drive, dan mengikuti filter aktif.",
+  "updatedAt":  "2026-10-26T02:50:35.715241531Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

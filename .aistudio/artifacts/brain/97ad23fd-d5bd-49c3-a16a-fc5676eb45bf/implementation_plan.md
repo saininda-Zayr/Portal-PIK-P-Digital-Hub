@@ -1,75 +1,103 @@
-# Rencana Implementasi: Kategorisasi Level Akses Pengguna (Multi-Level RBAC)
+# Rekap & Ekspor Excel Berkas SPK PPPK Paruh Waktu
 
-Penambahan sistem kategorisasi level akses pengguna (*Role-Based Access Control* / RBAC) pada menu **Manajemen User** di portal Cloud-P BKPSDM Polewali Mandar untuk membagi wewenang akun ke dalam 4 tingkatan: **Super Admin**, **Admin Bidang**, **Staf Operator**, dan **Viewer**, lengkap dengan kontrol visibilitas menu sidebar dan pembatasan izin modifikasi/penghapusan data.
-
----
-
-## 1. Spesifikasi Level Akses & Matriks Kewenangan
-
-| Level Akses | Izin & Akses Menu Sidebar | Hak Hapus Data | Hak Kelola User |
-| :--- | :--- | :---: | :---: |
-| **Super Admin** | Akses penuh ke seluruh menu (Dashboard, Data Center, Arsip Digital, SPK PPPK, Permintaan Data, Work Hub, Pengumuman, Manajemen User) | Ya (Penuh) | Ya (Semua Akun) |
-| **Admin Bidang** | Akses ke seluruh menu operasional (Data Center, Arsip Digital, SPK PPPK, Permintaan Data, Work Hub, Pengumuman), *kecuali* Manajemen User | Ya (Dokumen/Arsip) | Tidak |
-| **Staf Operator** | Akses ke Data Center, Arsip Digital, Permintaan Data, Work Hub, dan Pengumuman (Dapat mengunggah & mengedit dokumen) | Tidak | Tidak |
-| **Viewer** | Akses baca saja (*Read-only*): Dapat melihat Dashboard, mencari & mengunduh dokumen di Data Center & Arsip Digital, melihat status permintaan & pengumuman. Tombol Tambah/Edit/Hapus disembunyikan. | Tidak | Tidak |
-
-> **Proteksi Khusus**: Akun utama (`saininda@gmail.com` / UID `lUGYop8JDvcT2SJxjiEzBC8PD2p2`) tetap memiliki hak istimewa permanen sebagai Super Admin dan tidak dapat diturunkan levelnya atau dicabut aksesnya oleh user lain.
+Penambahan fitur rekapitulasi data pengunggahan berkas Surat Perjanjian Kerja (SPK) PPPK Paruh Waktu dalam format Microsoft Excel (.xlsx) di portal monitoring admin BKPSDM Polewali Mandar, lengkap dengan informasi status (Sudah/Belum Mengunggah), OPD, Unit Kerja, dan tautan berkas di Google Drive.
 
 ---
 
-## 2. Rincian Perubahan Kode & Konfigurasi
+## User Review & Critical Decisions
 
-### A. Database & Aturan Keamanan (Firestore & Security Rules)
-- **`firestore.rules`**:
-  - Perbarui fungsi `isValidUser` agar memvalidasi atribut `role` yang diperluas: `['super_admin', 'admin', 'staff', 'viewer']` (tetap kompatibel dengan data yang sudah ada).
-  - Perbarui helper peran:
-    - `isSuperAdmin()`: Memeriksa apakah user adalah Super Admin atau pemilik sistem.
-    - `isAdmin()`: Memeriksa apakah user adalah Super Admin atau Admin Bidang.
-    - `isOperatorOrAbove()`: Memeriksa apakah user bukan Viewer (memiliki izin tulis/unggah).
-  - Batasi aksi `delete` pada koleksi `documents`, `archives`, `tasks`, `announcements` hanya untuk pengguna dengan level Admin atau Super Admin.
-  - Batasi pembaruan koleksi `users` hanya untuk Super Admin.
-- **`firebase-blueprint.json`**:
-  - Perbarui skema enum `role` pada entitas `User` menjadi `["super_admin", "admin", "staff", "viewer"]`.
-- Deploy aturan keamanan Firestore yang telah disesuaikan via `deploy_firebase`.
+> [!IMPORTANT]
+> Berdasarkan konfirmasi pertanyaan klarifikasi sebelumnya, fitur ini akan dibangun dengan ketentuan berikut:
 
-### B. Antarmuka Manajemen User (`UserManagement` di `src/App.tsx`)
-- **Kolom Baru Level Akses**:
-  - Menambahkan kolom **Level Akses** pada tabel pengguna.
-  - Menyediakan dropdown interaktif (`<select>`) langsung pada setiap baris user dengan opsi:
-    - `super_admin` (*Super Admin*)
-    - `admin` (*Admin Bidang*)
-    - `staff` (*Staf Operator*)
-    - `viewer` (*Viewer / Akses Lihat*)
-  - Menampilkan badge visual yang jelas dengan warna teridentifikasi (Ungu/Emas untuk Super Admin, Biru untuk Admin Bidang, Hijau untuk Operator, Abu-abu untuk Viewer).
-- **Aksi Cepat & Proteksi**:
-  - Perubahan dropdown langsung memicu update ke Firestore (`updateDoc` / `setDoc` dengan `merge: true`).
-  - Menampilkan umpan balik visual (*toast* / pesan konfirmasi sukses saat level akses berhasil diubah).
-  - Menonaktifkan dropdown perubahan level untuk akun admin utama pemilik portal (`saininda@gmail.com`).
-
-### C. Pembatasan Menu Sidebar & Kontrol Fitur Sesuai Role
-- **Sidebar Menu Filtering (`Sidebar` di `src/App.tsx`)**:
-  - Menerima `userRole` dari data profil pengguna saat ini.
-  - Menu `Manajemen User`: Hanya tampil bagi pengguna dengan level `super_admin` atau email utama `saininda@gmail.com`.
-  - Menu operasional disesuaikan agar pengguna dengan level yang tepat mendapatkan pengalaman yang bersih dan relevan.
-- **Proteksi Aksi UI**:
-  - Tombol **Hapus Dokumen** dan **Hapus Arsip**: Hanya tampil jika pengguna adalah `super_admin` atau `admin`.
-  - Tombol **Unggah Dokumen** / **Tambah Arsip** / **Tambah Tugas**: Disembunyikan atau dinonaktifkan untuk level `viewer`.
+- **Cakupan Data Rekap**: **Lengkap (Sudah & Belum Mengunggah)**. Sistem akan mencocokkan master data seluruh PPPK Paruh Waktu Kabupaten Polewali Mandar dengan riwayat pengunggahan di database `spk_pppk_submissions`.
+- **Susunan Sheet Excel**: **1 (Satu) Sheet Terpadu** yang memuat seluruh tabel data gabungan lintas OPD dan Unit Kerja secara rapi, dilengkapi header resmi BKPSDM dan statistik ringkasan di bagian atas.
+- **Dukungan Filter**: **Mengikuti Filter Aktif di Layar**. Jika admin sedang memfilter OPD tertentu atau mencari kata kunci nama/NIP, berkas Excel yang diunduh akan merefleksikan hasil filter tersebut (dilengkapi tombol opsi untuk unduh seluruh kabupaten atau unduh filter aktif).
 
 ---
 
-## 3. Rencana Verifikasi & Pengujian
+## 1. Overview & Core Concept
 
-### Otomatisasi (Build & Linter)
-1. Menjalankan `compile_applet` untuk memastikan seluruh tipe data TypeScript dan komponen terkompilasi tanpa galat.
-2. Menjalankan `lint_applet` untuk memastikan tidak ada kesalahan sintaks atau impor yang hilang.
-3. Menjalankan `deploy_firebase` untuk memastikan aturan keamanan Firestore versi multi-role berhasil aktif di server Google Cloud.
+- **Apa yang Dibangun**: Tombol aksi dan modal interaktif "Ekspor Rekap Excel" di menu *Monitoring Berkas SPK PPPK*, yang menghasilkan berkas spreadsheet `.xlsx` resmi dengan format rapi dan kolom lengkap.
+- **Target Pengguna**: Pejabat fungsional, pengelola kepegawaian, dan administrator Bidang Pengadaan, Pemberhentian & Informasi Kepegawaian (Cloud-P) BKPSDM Polewali Mandar.
+- **Nilai Manfaat**: 
+  - Memudahkan pelaporan berkala progres SPK ke pimpinan (Kepala BKPSDM / Sekretaris Daerah).
+  - Membantu OPD/Unit Kerja mengidentifikasi pegawai PPPK yang belum menuntaskan pengunggahan SPK fisik.
+  - Memiliki arsip lokal yang mencantumkan nama file standar `SPK_[NIP]_[Nama].pdf` dan link akses langsung ke Google Drive.
 
-### Pengujian Fungsional
-1. **Perubahan Role Dinamis**: Masuk ke menu Manajemen User, ubah role salah satu user dari Staf ke Viewer, lalu ke Admin Bidang, dan pastikan data tersimpan di Firestore secara seketika.
-2. **Uji Visibilitas Sidebar**:
-   - Sebagai Super Admin: Menu Manajemen User muncul dan dapat diakses.
-   - Sebagai Admin Bidang / Staf / Viewer: Menu Manajemen User tersembunyi dari navigasi sidebar.
-3. **Uji Pembatasan Aksi Hapus**:
-   - Memastikan tombol hapus dokumen tidak muncul pada level Staf Operator dan Viewer.
-4. **Uji Mode Read-Only (Viewer)**:
-   - Memastikan pengguna dengan level Viewer tidak dapat menambahkan berkas baru dan hanya dapat melihat serta mengunduh berkas.
+---
+
+## 2. User Experience & Visual Design
+
+### Key User Flows
+1. **Navigasi Admin**: Admin membuka menu **Monitoring SPK PPPK**.
+2. **Penerapan Filter (Opsional)**: Admin dapat memilih filter OPD tertentu (misal: *Dinas Kesehatan*) atau mencari nama/unit kerja tertentu.
+3. **Pemicu Ekspor**: Di baris aksi atas (sebelah tombol Setup Drive & Akses Drive), tersedia tombol hijau berstandar spreadsheet:
+   - Label: **`📊 Ekspor Rekap Excel`**
+   - Menampilkan badge jumlah total baris yang akan diekspor (misal: *1,489 pegawai*).
+4. **Modal Konfirmasi Ringkas / Dropdown Aksi**:
+   - Opsi Cepat 1: *Ekspor Sesuai Filter Aktif* (misal: 120 data Puskesmas / Dinas Terpilih).
+   - Opsi Cepat 2: *Ekspor Seluruh Pegawai se-Kabupaten* (semua 45 OPD).
+5. **Proses Unduh**: Indikator loading halus, file langsung terunduh secara instan dengan penamaan file otomatis:
+   - Format nama file: `REKAP_SPK_PPPK_POLMAN_[NAMA_OPD]_[TANGGAL].xlsx`.
+
+### Struktur Kolom Sheet Excel
+Tabel spreadsheet diformat dengan baris header elegan (Dark Charcoal / Emas Khas Polewali Mandar), autofilter aktif, dan pembagian kolom:
+
+| No | NIP | Nama Lengkap Pegawai | OPD Induk | Unit Kerja Penempatan | Status Unggah | Nama Berkas Standar | Waktu Unggah | Tautan Berkas Google Drive | Status Jembatan Drive |
+|----|-----|----------------------|-----------|------------------------|---------------|---------------------|--------------|----------------------------|-----------------------|
+| 1  | 198... | FULAN, S.Pd.      | DINAS PENDIDIKAN DAN KEBUDAYAAN | SMP NEGERI 1 POLEWALI | SUDAH UNGGAH | SPK_198..._FULAN.pdf | 26/10/2026 09:15 | [Buka di Drive] | Tersimpan |
+| 2  | 199... | FULANA, A.Md.Keb  | DINAS KESEHATAN | PUSKESMAS TINAMBUNG | BELUM UNGGAH | - | - | - | - |
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Penggabungan Master Pegawai & Data Submission**:
+  - *Keputusan*: Melakukan *left join* antara master data pegawai (`ALL_PEGAWAI` / OPD mapping) dengan koleksi Firestore `spk_pppk_submissions` berdasarkan NIP.
+  - *Alasan*: Menjamin akurasi 100% sehingga admin mengetahui persis siapa yang sudah dan siapa yang belum mengunggah.
+- **Pustaka Pembuat Spreadsheet**:
+  - *Keputusan*: Menggunakan pustaka standar industri `xlsx` (SheetJS) yang terpasang di client-side.
+  - *Alasan*: Kompatibel penuh dengan Microsoft Excel, Google Sheets, dan LibreOffice tanpa memerlukan server-side render yang lambat.
+- **Pewarnaan Status di Excel**:
+  - Kolom status diberi penanda teks yang jelas: `SUDAH UNGGAH` (hijau/positif) dan `BELUM UNGGAH` (merah/perhatian) sehingga mudah difilter langsung di Excel.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+```
+┌────────────────────────────────────────────────────────┐
+│             Firestore & Master Data Sources            │
+│  ┌───────────────────────┐   ┌──────────────────────┐  │
+│  │ spk_pppk_submissions │   │ ALL_PEGAWAI & OPD    │  │
+│  │ (Data Berkas Diunggah)│   │ (Master Pegawai)     │  │
+│  └───────────┬───────────┘   └───────────┬──────────┘  │
+└──────────────┼───────────────────────────┼─────────────┘
+               │                           │
+               ▼                           ▼
+┌────────────────────────────────────────────────────────┐
+│       SPK Monitoring View (React State & Memo)         │
+│  - Active Filter (OPD filter, Search query)            │
+│  - Merged Records Generator (Sudah vs Belum)           │
+│  - Excel Data Transformer (Column & Header Styling)    │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│             SheetJS / XLSX File Downloader             │
+│  - Generate WorkBook with Single Sheet                 │
+│  - Set Cell Dimensions & Column Widths                 │
+│  - Save as .xlsx (REKAP_SPK_PPPK_POLMAN_*.xlsx)        │
+└────────────────────────────────────────────────────────┘
+```
+
+### Data Pipeline & Event Handlers
+1. **Penggabungan Data (`useMemo`)**:
+   - Memetakan setiap NIP di data pegawai terhadap submission terbaru di Firestore.
+   - Menyertakan OPD dan Unit Kerja dari data submission atau unit kerja master.
+2. **Penerapan Filter**:
+   - Jika `selectedOpdFilter` aktif, saring hanya pegawai di OPD tersebut.
+   - Jika `searchQuery` aktif, saring berdasarkan kecocokan NIP atau nama.
+3. **Ekspor Handler**:
+   - Menyiapkan baris metadata (judul rekap, tanggal cetak, pembuat rekap).
+   - Menghasilkan buffer file XLSX dan memicu unduhan browser via Blob.
