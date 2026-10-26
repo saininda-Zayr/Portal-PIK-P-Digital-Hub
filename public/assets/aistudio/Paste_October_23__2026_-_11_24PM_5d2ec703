@@ -1,0 +1,465 @@
+1	Badan Kepegawaian, Pendidikan dan Pelatihan
+2	Badan Kesatuan Bangsa dan Politik
+3	BADAN KEUANGAN
+4	Badan Penanggulangan Bencana Daerah
+5	BADAN PENDAPATAN
+6	BADAN PENELITIAN PENGEMBANGAN DAN PERENCANAAN
+7	UPTD AGRO TECHNO PARK - BADAN PENELITIAN PENGEMBANGAN DAN PERENCANAAN
+8	DINAS KELAUTAN DAN PERIKANAN
+9	Dinas Kependudukan dan Pencatatan Sipil
+10	Dinas Kesehatan
+11	RUMAH SAKIT UMUM DAERAH WONOMULYO - Dinas Kesehatan
+12	UPTD PUSKESMAS ANREAPI - Dinas Kesehatan
+13	UPTD PUSKESMAS BATUPANGA - Dinas Kesehatan
+14	UPTD PUSKESMAS BINUANG - Dinas Kesehatan
+15	UPTD PUSKESMAS BULO - Dinas Kesehatan
+16	UPTD PUSKESMAS CAMPALAGIAN - Dinas Kesehatan
+17	UPTD PUSKESMAS KATUMBANGAN - Dinas Kesehatan
+18	UPTD PUSKESMAS KEBUNSARI - Dinas Kesehatan
+19	UPTD PUSKESMAS LIMBORO - Dinas Kesehatan
+20	UPTD PUSKESMAS MAPILLI - Dinas Kesehatan
+21	UPTD PUSKESMAS MASSENGA - Dinas Kesehatan
+22	UPTD PUSKESMAS MATAKALI - Dinas Kesehatan
+23	UPTD PUSKESMAS MATANGNGA - Dinas Kesehatan
+24	UPTD PUSKESMAS PAMBUSUANG - Dinas Kesehatan
+25	UPTD PUSKESMAS PEKKABATA - Dinas Kesehatan
+26	UPTD PUSKESMAS PELITAKAN - Dinas Kesehatan
+27	UPTD PUSKESMAS POLEWALI - Dinas Kesehatan
+28	UPTD PUSKESMAS TINAMBUNG - Dinas Kesehatan
+29	UPTD PUSKESMAS TUTALLU - Dinas Kesehatan
+30	UPTD PUSKESMAS TUTAR - Dinas Kesehatan
+31	UPTD PUSKESMAS WONOMULYO - Dinas Kesehatan
+32	Dinas Komunikasi, Informatika, Statistik dan Persandian
+33	Dinas Lingkungan Hidup dan Kehutanan
+34	Dinas Pekerjaan Umum dan Penataan Ruang
+35	UPTD PENGELOLA SUMBER DAYA AIR WILAYAH I - Dinas Pekerjaan Umum dan Penataan Ruang
+36	UPTD PENGELOLA SUMBER DAYA AIR WILAYAH II - Dinas Pekerjaan Umum dan Penataan Ruang
+37	UPTD PENGELOLA SUMBER DAYA AIR WILAYAH III - Dinas Pekerjaan Umum dan Penataan Ruang
+38	UPTD PENGELOLAAN AIR LIMBAH - Dinas Pekerjaan Umum dan Penataan Ruang
+39	UPTD PERALATAN DAN PERBENGKELAN - Dinas Pekerjaan Umum dan Penataan Ruang
+40	Dinas Pemberdayaan Masyarakat dan Desa
+41	DINAS PEMUDA, OLAHRAGA DAN PARIWISATA
+42	UPTD SPORT CENTRE - DINAS PEMUDA, OLAHRAGA DAN PARIWISATA
+43	Dinas Penanaman Modal dan Pelayanan Terpadu Satu Pintu
+44	SD NEGERI 005 SIDODADI - Dinas Pendidikan dan Kebudayaan
+45	SD NEGERI 006 SIDODADI - Dinas Pendidikan dan Kebudayaan
+46	SD NEGERI 007 SIDODADI - Dinas Pendidikan dan Kebudayaan
+47	SD NEGERI 012 GALESO - Dinas Pendidikan dan Kebudayaan
+48	SD NEGERI 013 SUMBERJO - Dinas Pendidikan dan Kebudayaan
+49	SD NEGERI 014 PULAU BATTOA - Dinas Pendidikan dan Kebudayaan
+50	SD NEGERI 014 SUMBERJO - Dinas Pendidikan dan Kebudayaan
+51	SD NEGERI 015 SUMBERJO - Dinas Pendidikan dan Kebudayaan
+52	SD NEGERI 015 TONYAMAN - Dinas Pendidikan dan Kebudayaan
+53	SD NEGERI 016 SARAMPU - Dinas Pendidikan dan Kebudayaan
+54	SD NEGERI 017 SIDOREJO - Dinas Pendidikan dan Kebudayaan
+55	SD NEGERI 018 LOMBOK - Dinas Pendidikan dan Kebudayaan
+56	SD NEGERI 020 KEBUNSARI - Dinas Pendidikan dan Kebudayaan
+57	SD NEGERI 022 KEBUNSARI - Dinas Pendidikan dan Kebudayaan
+58	SD NEGERI 023 KEBUNSARI - Dinas Pendidikan dan Kebudayaan
+59	SD NEGERI 029 SUMBERJO - Dinas Pendidikan dan Kebudayaan
+60	SD NEGERI 030 BINUANG - Dinas Pendidikan dan Kebudayaan
+61	SD NEGERI 031 MIRRING - Dinas Pendidikan dan Kebudayaan
+62	SD NEGERI 031 TUMPILING - Dinas Pendidikan dan Kebudayaan
+63	SD NEGERI 032 KEBUNSARI - Dinas Pendidikan dan Kebudayaan
+64	SD NEGERI 036 PUCCEDA - Dinas Pendidikan dan Kebudayaan
+65	SD NEGERI 037 LEKOPADIS - Dinas Pendidikan dan Kebudayaan
+66	SD NEGERI 043 KEBUN DALAM - Dinas Pendidikan dan Kebudayaan
+67	SD NEGERI 046 SIDOREJO - Dinas Pendidikan dan Kebudayaan
+68	SD NEGERI 052 GALESO - Dinas Pendidikan dan Kebudayaan
+69	SD NEGERI 052 MAMMI - Dinas Pendidikan dan Kebudayaan
+70	SD NEGERI 053 SARAMPU - Dinas Pendidikan dan Kebudayaan
+71	SD NEGERI 054 RAPPOANG - Dinas Pendidikan dan Kebudayaan
+72	SD NEGERI 055 BAJOE - Dinas Pendidikan dan Kebudayaan
+73	SD NEGERI 058 TETE - Dinas Pendidikan dan Kebudayaan
+74	SD NEGERI 059 AMOLA - Dinas Pendidikan dan Kebudayaan
+75	SD NEGERI 060 MAMPIE - Dinas Pendidikan dan Kebudayaan
+76	SD NEGERI 061 MACERA - Dinas Pendidikan dan Kebudayaan
+77	SD NEGERI 063 BAKKA BAKKA - Dinas Pendidikan dan Kebudayaan
+78	SD NEGERI 069 LANRAE - Dinas Pendidikan dan Kebudayaan
+79	SD NEGERI BANUA BARU - Dinas Pendidikan dan Kebudayaan
+80	SD NEGERI BINUANG - Dinas Pendidikan dan Kebudayaan
+81	SD NEGERI KAMPUNO - Dinas Pendidikan dan Kebudayaan
+82	SMP NEGERI 1 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+83	SMP NEGERI 2 MAPILLI - Dinas Pendidikan dan Kebudayaan
+84	SMP NEGERI 2 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+85	SMP NEGERI 3 MAPILLI - Dinas Pendidikan dan Kebudayaan
+86	SMP NEGERI 3 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+87	SMP NEGERI 4 TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+88	SMP NEGERI 5 TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+89	SMP NEGERI 5 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+90	SMP NEGERI 6 TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+91	SMP NEGERI 7 POLEWALI - Dinas Pendidikan dan Kebudayaan
+92	SMP NEGERI 7 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+93	SMP NEGERI BINUANG - Dinas Pendidikan dan Kebudayaan
+94	SMP NEGERI MAPILLI - Dinas Pendidikan dan Kebudayaan
+95	SMP NEGERI PASANG - Dinas Pendidikan dan Kebudayaan
+96	SMP NEGERI SATU ATAP KALEOK - Dinas Pendidikan dan Kebudayaan
+97	TK PEMBINA TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+98	Dinas Pendidikan dan Kebudayaan
+99	SANGGAR KEGIATAN BELAJAR - Dinas Pendidikan dan Kebudayaan
+100	SD NEGERI 001 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+101	SD NEGERI 001 MATAKALI - Dinas Pendidikan dan Kebudayaan
+102	SD NEGERI 001 PETOOSANG - Dinas Pendidikan dan Kebudayaan
+103	SD NEGERI 001 POLEWALI - Dinas Pendidikan dan Kebudayaan
+104	SD NEGERI 001 TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+105	SD NEGERI 002 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+106	SD NEGERI 002 MAPILLI - Dinas Pendidikan dan Kebudayaan
+107	SD NEGERI 002 POLEWALI - Dinas Pendidikan dan Kebudayaan
+108	SD NEGERI 002 PUMBEJAGI - Dinas Pendidikan dan Kebudayaan
+109	SD NEGERI 003 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+110	SD NEGERI 003 KANDEAPI - Dinas Pendidikan dan Kebudayaan
+111	SD NEGERI 003 LAMPA - Dinas Pendidikan dan Kebudayaan
+112	SD NEGERI 003 POLEWALI - Dinas Pendidikan dan Kebudayaan
+113	SD NEGERI 003 SOSSO - Dinas Pendidikan dan Kebudayaan
+114	SD NEGERI 004 BUKU - Dinas Pendidikan dan Kebudayaan
+115	SD NEGERI 004 KANDEMENG - Dinas Pendidikan dan Kebudayaan
+116	SD NEGERI 004 MOMBI - Dinas Pendidikan dan Kebudayaan
+117	SD NEGERI 004 POLEWALI - Dinas Pendidikan dan Kebudayaan
+118	SD NEGERI 004 UJUNG - Dinas Pendidikan dan Kebudayaan
+119	SD NEGERI 005 LAPEO - Dinas Pendidikan dan Kebudayaan
+120	SD NEGERI 005 PAMBUSUANG - Dinas Pendidikan dan Kebudayaan
+121	SD NEGERI 005 PAO-PAO - Dinas Pendidikan dan Kebudayaan
+122	SD NEGERI 006 LABUANG - Dinas Pendidikan dan Kebudayaan
+123	SD NEGERI 006 PAMBUSUANG - Dinas Pendidikan dan Kebudayaan
+124	SD NEGERI 006 PUPPURING - Dinas Pendidikan dan Kebudayaan
+125	SD NEGERI 007 BULO-BULO - Dinas Pendidikan dan Kebudayaan
+126	SD NEGERI 007 LANTORA - Dinas Pendidikan dan Kebudayaan
+127	SD NEGERI 007 PARAPPE - Dinas Pendidikan dan Kebudayaan
+128	SD NEGERI 008 CAMBA-CAMBA - Dinas Pendidikan dan Kebudayaan
+129	SD NEGERI 008 MATANGNGA - Dinas Pendidikan dan Kebudayaan
+130	SD NEGERI 008 PANYAMPA - Dinas Pendidikan dan Kebudayaan
+131	SD NEGERI 008 SULEWATANG - Dinas Pendidikan dan Kebudayaan
+132	SD NEGERI 008 TARAMANU - Dinas Pendidikan dan Kebudayaan
+133	SD NEGERI 009 KATUMBANGAN - Dinas Pendidikan dan Kebudayaan
+134	SD NEGERI 009 LOMBOK - Dinas Pendidikan dan Kebudayaan
+135	SD NEGERI 009 TAKATIDUNG - Dinas Pendidikan dan Kebudayaan
+136	SD NEGERI 009 TAPUA - Dinas Pendidikan dan Kebudayaan
+137	SD NEGERI 010 BATU - Dinas Pendidikan dan Kebudayaan
+138	SD NEGERI 010 KATUMBANGAN - Dinas Pendidikan dan Kebudayaan
+139	SD NEGERI 010 PALECE - Dinas Pendidikan dan Kebudayaan
+140	SD NEGERI 011 RAPPOGADING - Dinas Pendidikan dan Kebudayaan
+141	SD NEGERI 011 RATTEKALLANG - Dinas Pendidikan dan Kebudayaan
+142	SD NEGERI 011 TEPPO - Dinas Pendidikan dan Kebudayaan
+143	SD NEGERI 012 GATTUNGAN - Dinas Pendidikan dan Kebudayaan
+144	SD NEGERI 012 KARAMA - Dinas Pendidikan dan Kebudayaan
+145	SD NEGERI 012 TUBBI - Dinas Pendidikan dan Kebudayaan
+146	SD NEGERI 013 BOTTO - Dinas Pendidikan dan Kebudayaan
+147	SD NEGERI 013 MATANGNGA - Dinas Pendidikan dan Kebudayaan
+148	SD NEGERI 013 MOJOPAHIT - Dinas Pendidikan dan Kebudayaan
+149	SD NEGERI 014 PETOOSANG - Dinas Pendidikan dan Kebudayaan
+150	SD NEGERI 014 SUMARANG - Dinas Pendidikan dan Kebudayaan
+151	SD NEGERI 014 TANGNGA TANGNGA - Dinas Pendidikan dan Kebudayaan
+152	SD NEGERI 015 BERU-BERU - Dinas Pendidikan dan Kebudayaan
+153	SD NEGERI 015 PUMBEJAGI - Dinas Pendidikan dan Kebudayaan
+154	SD NEGERI 015 TANDUNG - Dinas Pendidikan dan Kebudayaan
+155	SD NEGERI 016 BUTTU - Dinas Pendidikan dan Kebudayaan
+156	SD NEGERI 016 TANDUNG - Dinas Pendidikan dan Kebudayaan
+157	SD NEGERI 017 BONRA - Dinas Pendidikan dan Kebudayaan
+158	SD NEGERI 017 BUNG - Dinas Pendidikan dan Kebudayaan
+159	SD NEGERI 017 MANDING - Dinas Pendidikan dan Kebudayaan
+160	SD NEGERI 017 NAPO - Dinas Pendidikan dan Kebudayaan
+161	SD NEGERI 017 TAPUA - Dinas Pendidikan dan Kebudayaan
+162	SD NEGERI 018 BONRA - Dinas Pendidikan dan Kebudayaan
+163	SD NEGERI 018 MANDING - Dinas Pendidikan dan Kebudayaan
+164	SD NEGERI 018 RUMPA - Dinas Pendidikan dan Kebudayaan
+165	SD NEGERI 019 BALANIPA - Dinas Pendidikan dan Kebudayaan
+166	SD NEGERI 019 MAMBU - Dinas Pendidikan dan Kebudayaan
+167	SD NEGERI 019 MANDING - Dinas Pendidikan dan Kebudayaan
+168	SD NEGERI 019 PAROPO - Dinas Pendidikan dan Kebudayaan
+169	SD NEGERI 019 SILA-SILA - Dinas Pendidikan dan Kebudayaan
+170	SD NEGERI 020 GALUNG - Dinas Pendidikan dan Kebudayaan
+171	SD NEGERI 020 PALLIS - Dinas Pendidikan dan Kebudayaan
+172	SD NEGERI 020 PUSU - Dinas Pendidikan dan Kebudayaan
+173	SD NEGERI 020 REA BARAT - Dinas Pendidikan dan Kebudayaan
+174	SD NEGERI 021 BUNGA-BUNGA - Dinas Pendidikan dan Kebudayaan
+175	SD NEGERI 021 LENA - Dinas Pendidikan dan Kebudayaan
+176	SD NEGERI 021 PAMOMBONG - Dinas Pendidikan dan Kebudayaan
+177	SD NEGERI 021 RATTE - Dinas Pendidikan dan Kebudayaan
+178	SD NEGERI 021 TAMMANGALLE - Dinas Pendidikan dan Kebudayaan
+179	SD NEGERI 022 BASSEANG - Dinas Pendidikan dan Kebudayaan
+180	SD NEGERI 022 LAMBANAN - Dinas Pendidikan dan Kebudayaan
+181	SD NEGERI 022 PALLEMBONGAN - Dinas Pendidikan dan Kebudayaan
+182	SD NEGERI 022 PIRIANG - Dinas Pendidikan dan Kebudayaan
+183	SD NEGERI 023 DARA - Dinas Pendidikan dan Kebudayaan
+184	SD NEGERI 023 KAMPUNG BARU - Dinas Pendidikan dan Kebudayaan
+185	SD NEGERI 023 SAYOANG - Dinas Pendidikan dan Kebudayaan
+186	SD NEGERI 023 TODANG-TODANG - Dinas Pendidikan dan Kebudayaan
+187	SD NEGERI 024 KAROKE - Dinas Pendidikan dan Kebudayaan
+188	SD NEGERI 024 KUNYI - Dinas Pendidikan dan Kebudayaan
+189	SD NEGERI 024 PELITAKAN - Dinas Pendidikan dan Kebudayaan
+190	SD NEGERI 024 TAPPARANG - Dinas Pendidikan dan Kebudayaan
+191	SD NEGERI 025 KAWELAAN - Dinas Pendidikan dan Kebudayaan
+192	SD NEGERI 025 KELAPA DUA - Dinas Pendidikan dan Kebudayaan
+193	SD NEGERI 025 MOSSO - Dinas Pendidikan dan Kebudayaan
+194	SD NEGERI 025 PUSSUI - Dinas Pendidikan dan Kebudayaan
+195	SD NEGERI 025 RAPPANG - Dinas Pendidikan dan Kebudayaan
+196	SD NEGERI 026 BANUA BARU - Dinas Pendidikan dan Kebudayaan
+197	SD NEGERI 026 BULO - Dinas Pendidikan dan Kebudayaan
+198	SD NEGERI 026 KAMANDE - Dinas Pendidikan dan Kebudayaan
+199	SD NEGERI 026 LANTORA - Dinas Pendidikan dan Kebudayaan
+200	SD NEGERI 026 SAMASUNDU - Dinas Pendidikan dan Kebudayaan
+201	SD NEGERI 027 RATTEMATAMA - Dinas Pendidikan dan Kebudayaan
+202	SD NEGERI 027 RENGGEANG - Dinas Pendidikan dan Kebudayaan
+203	SD NEGERI 027 TAKATIDUNG - Dinas Pendidikan dan Kebudayaan
+204	SD NEGERI 027 TAPANGO - Dinas Pendidikan dan Kebudayaan
+205	SD NEGERI 028 LAPEO - Dinas Pendidikan dan Kebudayaan
+206	SD NEGERI 028 LILLI - Dinas Pendidikan dan Kebudayaan
+207	SD NEGERI 028 LULLUNG - Dinas Pendidikan dan Kebudayaan
+208	SD NEGERI 028 PEKKABATA - Dinas Pendidikan dan Kebudayaan
+209	SD NEGERI 028 TANDASSURA - Dinas Pendidikan dan Kebudayaan
+210	SD NEGERI 029 BOTTO - Dinas Pendidikan dan Kebudayaan
+211	SD NEGERI 029 PALUPPUNG - Dinas Pendidikan dan Kebudayaan
+212	SD NEGERI 029 TANRO - Dinas Pendidikan dan Kebudayaan
+213	SD NEGERI 030 LEMBANG-LEMBANG - Dinas Pendidikan dan Kebudayaan
+214	SD NEGERI 030 TANASE - Dinas Pendidikan dan Kebudayaan
+215	SD NEGERI 031 BANU-BANUA - Dinas Pendidikan dan Kebudayaan
+216	SD NEGERI 031 KATUMBANGAN - Dinas Pendidikan dan Kebudayaan
+217	SD NEGERI 031 SUMARRANG - Dinas Pendidikan dan Kebudayaan
+218	SD NEGERI 032 KUNYI - Dinas Pendidikan dan Kebudayaan
+219	SD NEGERI 032 PAMBUSUANG - Dinas Pendidikan dan Kebudayaan
+220	SD NEGERI 032 SUMARANG - Dinas Pendidikan dan Kebudayaan
+221	SD NEGERI 033 DARMA - Dinas Pendidikan dan Kebudayaan
+222	SD NEGERI 033 MALIMBUNG - Dinas Pendidikan dan Kebudayaan
+223	SD NEGERI 033 PELITAKAN - Dinas Pendidikan dan Kebudayaan
+224	SD NEGERI 033 SURUANG - Dinas Pendidikan dan Kebudayaan
+225	SD NEGERI 033 TAMMANGALLE - Dinas Pendidikan dan Kebudayaan
+226	SD NEGERI 034 ALLU - Dinas Pendidikan dan Kebudayaan
+227	SD NEGERI 034 NAPO - Dinas Pendidikan dan Kebudayaan
+228	SD NEGERI 034 RAPPANG - Dinas Pendidikan dan Kebudayaan
+229	SD NEGERI 034 RINGINAN - Dinas Pendidikan dan Kebudayaan
+230	SD NEGERI 035 BUSSU - Dinas Pendidikan dan Kebudayaan
+231	SD NEGERI 035 LIMBORO - Dinas Pendidikan dan Kebudayaan
+232	SD NEGERI 035 LUTANG - Dinas Pendidikan dan Kebudayaan
+233	SD NEGERI 036 BONDE - Dinas Pendidikan dan Kebudayaan
+234	SD NEGERI 037 LALIKO - Dinas Pendidikan dan Kebudayaan
+235	SD NEGERI 038 KANUSUANG - Dinas Pendidikan dan Kebudayaan
+236	SD NEGERI 038 TIBUNG - Dinas Pendidikan dan Kebudayaan
+237	SD NEGERI 039 LAMPA TOA - Dinas Pendidikan dan Kebudayaan
+238	SD NEGERI 039 MANDING - Dinas Pendidikan dan Kebudayaan
+239	SD NEGERI 039 PANGGALO - Dinas Pendidikan dan Kebudayaan
+240	SD NEGERI 040 BELUAK - Dinas Pendidikan dan Kebudayaan
+241	SD NEGERI 040 LABASANG - Dinas Pendidikan dan Kebudayaan
+242	SD NEGERI 040 LEMBANG-LEMBANG - Dinas Pendidikan dan Kebudayaan
+243	SD NEGERI 040 PALLUDAI - Dinas Pendidikan dan Kebudayaan
+244	SD NEGERI 041 PUCCADI - Dinas Pendidikan dan Kebudayaan
+245	SD NEGERI 041 PUNDAMBU - Dinas Pendidikan dan Kebudayaan
+246	SD NEGERI 041 TANDASSURA - Dinas Pendidikan dan Kebudayaan
+247	SD NEGERI 042 KUNYI - Dinas Pendidikan dan Kebudayaan
+248	SD NEGERI 042 PANGALLOANG - Dinas Pendidikan dan Kebudayaan
+249	SD NEGERI 043 BULUBAWANG - Dinas Pendidikan dan Kebudayaan
+250	SD NEGERI 043 BUMBUNG - Dinas Pendidikan dan Kebudayaan
+251	SD NEGERI 043 KAIDA - Dinas Pendidikan dan Kebudayaan
+252	SD NEGERI 044 BUTTU LAMBA - Dinas Pendidikan dan Kebudayaan
+253	SD NEGERI 044 KAMPUNG BARU SUBIK - Dinas Pendidikan dan Kebudayaan
+254	SD NEGERI 044 RISO - Dinas Pendidikan dan Kebudayaan
+255	SD NEGERI 045 BAULU - Dinas Pendidikan dan Kebudayaan
+256	SD NEGERI 045 BERU-BERU - Dinas Pendidikan dan Kebudayaan
+257	SD NEGERI 045 SALARRI - Dinas Pendidikan dan Kebudayaan
+258	SD NEGERI 046 ARABUA - Dinas Pendidikan dan Kebudayaan
+259	SD NEGERI 046 BARU PARAPPE - Dinas Pendidikan dan Kebudayaan
+260	SD NEGERI 046 PARATTEAN - Dinas Pendidikan dan Kebudayaan
+261	SD NEGERI 047 BAURUNG - Dinas Pendidikan dan Kebudayaan
+262	SD NEGERI 047 TANDUNG - Dinas Pendidikan dan Kebudayaan
+263	SD NEGERI 048 MAMBULILLING - Dinas Pendidikan dan Kebudayaan
+264	SD NEGERI 048 MATAKALI - Dinas Pendidikan dan Kebudayaan
+265	SD NEGERI 048 PESSUNAN - Dinas Pendidikan dan Kebudayaan
+266	SD NEGERI 048 PUPENGA - Dinas Pendidikan dan Kebudayaan
+267	SD NEGERI 049 LENA - Dinas Pendidikan dan Kebudayaan
+268	SD NEGERI 050 KATAPANG - Dinas Pendidikan dan Kebudayaan
+269	SD NEGERI 050 MANDING - Dinas Pendidikan dan Kebudayaan
+270	SD NEGERI 050 PANDEWULAWANG - Dinas Pendidikan dan Kebudayaan
+271	SD NEGERI 050 PAPPANG - Dinas Pendidikan dan Kebudayaan
+272	SD NEGERI 051 LAMPA - Dinas Pendidikan dan Kebudayaan
+273	SD NEGERI 051 LAMPOKO - Dinas Pendidikan dan Kebudayaan
+274	SD NEGERI 051 LITAPUTE - Dinas Pendidikan dan Kebudayaan
+275	SD NEGERI 052 JEMARANG - Dinas Pendidikan dan Kebudayaan
+276	SD NEGERI 052 MAMBU - Dinas Pendidikan dan Kebudayaan
+277	SD NEGERI 053 PARIANGAN - Dinas Pendidikan dan Kebudayaan
+278	SD NEGERI 054 PAREDEANG - Dinas Pendidikan dan Kebudayaan
+279	SD NEGERI 054 UJUNG GALUNG - Dinas Pendidikan dan Kebudayaan
+280	SD NEGERI 055 KANDEAPI - Dinas Pendidikan dan Kebudayaan
+281	SD NEGERI 055 PASSAIRANG - Dinas Pendidikan dan Kebudayaan
+282	SD NEGERI 056 LAMASARIANG - Dinas Pendidikan dan Kebudayaan
+283	SD NEGERI 056 LELUPANG - Dinas Pendidikan dan Kebudayaan
+284	SD NEGERI 056 WONOSARI - Dinas Pendidikan dan Kebudayaan
+285	SD NEGERI 057 LAMBEPADA - Dinas Pendidikan dan Kebudayaan
+286	SD NEGERI 057 PAPPANDANGAN - Dinas Pendidikan dan Kebudayaan
+287	SD NEGERI 057 PULLIWA - Dinas Pendidikan dan Kebudayaan
+288	SD NEGERI 057 SIRATUANG - Dinas Pendidikan dan Kebudayaan
+289	SD NEGERI 058 BEROANGIN - Dinas Pendidikan dan Kebudayaan
+290	SD NEGERI 058 GALUNG LEGO - Dinas Pendidikan dan Kebudayaan
+291	SD NEGERI 058 PARAPPE - Dinas Pendidikan dan Kebudayaan
+292	SD NEGERI 059 KAMPUNG LANU - Dinas Pendidikan dan Kebudayaan
+293	SD NEGERI 059 SABURA - Dinas Pendidikan dan Kebudayaan
+294	SD NEGERI 059 SUMAEL - Dinas Pendidikan dan Kebudayaan
+295	SD NEGERI 060 LOLLE - Dinas Pendidikan dan Kebudayaan
+296	SD NEGERI 060 MANUMANUKANG - Dinas Pendidikan dan Kebudayaan
+297	SD NEGERI 060 PEKKABATA - Dinas Pendidikan dan Kebudayaan
+298	SD NEGERI 061 TIGAS - Dinas Pendidikan dan Kebudayaan
+299	SD NEGERI 062 PALLEMBONGAN - Dinas Pendidikan dan Kebudayaan
+300	SD NEGERI 062 SANDANGAN - Dinas Pendidikan dan Kebudayaan
+301	SD NEGERI 063 BATU - Dinas Pendidikan dan Kebudayaan
+302	SD NEGERI 063 LAGIAGI - Dinas Pendidikan dan Kebudayaan
+303	SD NEGERI 063 SAWANG - Dinas Pendidikan dan Kebudayaan
+304	SD NEGERI 064 JAMBUMALEA - Dinas Pendidikan dan Kebudayaan
+305	SD NEGERI 064 KAMPUNG TULU - Dinas Pendidikan dan Kebudayaan
+306	SD NEGERI 064 LIMBORO - Dinas Pendidikan dan Kebudayaan
+307	SD NEGERI 065 BALA - Dinas Pendidikan dan Kebudayaan
+308	SD NEGERI 065 KURMA - Dinas Pendidikan dan Kebudayaan
+309	SD NEGERI 065 PULILALI - Dinas Pendidikan dan Kebudayaan
+310	SD NEGERI 066 CAPPEGO - Dinas Pendidikan dan Kebudayaan
+311	SD NEGERI 066 PEKKABATA - Dinas Pendidikan dan Kebudayaan
+312	SD NEGERI 067 LAMBE - Dinas Pendidikan dan Kebudayaan
+313	SD NEGERI 067 SIMBALATU - Dinas Pendidikan dan Kebudayaan
+314	SD NEGERI 068 SATTOKO - Dinas Pendidikan dan Kebudayaan
+315	SD NEGERI 070 KAROMBANG - Dinas Pendidikan dan Kebudayaan
+316	SD NEGERI 070 TONDO - Dinas Pendidikan dan Kebudayaan
+317	SD NEGERI 071 JATI - Dinas Pendidikan dan Kebudayaan
+318	SD NEGERI 071 LENGGO - Dinas Pendidikan dan Kebudayaan
+319	SD NEGERI 072 DAALA - Dinas Pendidikan dan Kebudayaan
+320	SD NEGERI GALU GALUNG - Dinas Pendidikan dan Kebudayaan
+321	SD NEGERI PUNCAK LANDI BARU - Dinas Pendidikan dan Kebudayaan
+322	SD NEGERI RURA - Dinas Pendidikan dan Kebudayaan
+323	SD NEGERI SIKKA - Dinas Pendidikan dan Kebudayaan
+324	SD NEGERI TALANGGA - Dinas Pendidikan dan Kebudayaan
+325	SD NEGERI TRANSMIGRASI PATAMBANUA - Dinas Pendidikan dan Kebudayaan
+326	SMP NEGERI 1 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+327	SMP NEGERI 1 POLEWALI - Dinas Pendidikan dan Kebudayaan
+328	SMP NEGERI 1 TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+329	SMP NEGERI 1 TUTALLU - Dinas Pendidikan dan Kebudayaan
+330	SMP NEGERI 2 ALU - Dinas Pendidikan dan Kebudayaan
+331	SMP NEGERI 2 BALANIPA - Dinas Pendidikan dan Kebudayaan
+332	SMP NEGERI 2 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+333	SMP NEGERI 2 MATANGNGA - Dinas Pendidikan dan Kebudayaan
+334	SMP NEGERI 2 POLEWALI - Dinas Pendidikan dan Kebudayaan
+335	SMP NEGERI 2 TINAMBUNG - Dinas Pendidikan dan Kebudayaan
+336	SMP NEGERI 2 TUTALLU - Dinas Pendidikan dan Kebudayaan
+337	SMP NEGERI 3 ALU - Dinas Pendidikan dan Kebudayaan
+338	SMP NEGERI 3 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+339	SMP NEGERI 3 POLEWALI - Dinas Pendidikan dan Kebudayaan
+340	SMP NEGERI 3 SUMARORONG - Dinas Pendidikan dan Kebudayaan
+341	SMP NEGERI 3 TAPANGO - Dinas Pendidikan dan Kebudayaan
+342	SMP NEGERI 3 TINAMBUNG -  Dinas Pendidikan dan Kebudayaan
+343	SMP NEGERI 4 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+344	SMP NEGERI 4 LUYO - Dinas Pendidikan dan Kebudayaan
+345	SMP NEGERI 4 POLEWALI - Dinas Pendidikan dan Kebudayaan
+346	SMP NEGERI 4 TUTAR - Dinas Pendidikan dan Kebudayaan
+347	SMP NEGERI 4 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+348	SMP NEGERI 5 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+349	SMP NEGERI 5 POLEWALI - Dinas Pendidikan dan Kebudayaan
+350	SMP NEGERI 5 TUTAR - Dinas Pendidikan dan Kebudayaan
+351	SMP NEGERI 6 CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+352	SMP NEGERI 6 POLEWALI - Dinas Pendidikan dan Kebudayaan
+353	SMP NEGERI 6 TUTAR - Dinas Pendidikan dan Kebudayaan
+354	SMP NEGERI 6 WONOMULYO - Dinas Pendidikan dan Kebudayaan
+355	SMP NEGERI 7 CAMPALAGIAN-SURUANG - Dinas Pendidikan dan Kebudayaan
+356	SMP NEGERI ANREAPI - Dinas Pendidikan dan Kebudayaan
+357	SMP NEGERI BATU - Dinas Pendidikan dan Kebudayaan
+358	SMP NEGERI BULO - Dinas Pendidikan dan Kebudayaan
+359	SMP NEGERI KATUMBANGAN LEMO - Dinas Pendidikan dan Kebudayaan
+360	SMP NEGERI LIMBORO - Dinas Pendidikan dan Kebudayaan
+361	SMP NEGERI LUYO - Dinas Pendidikan dan Kebudayaan
+362	SMP NEGERI MATAKALI - Dinas Pendidikan dan Kebudayaan
+363	SMP NEGERI PADANG MAWALLE - Dinas Pendidikan dan Kebudayaan
+364	SMP NEGERI RAPPANG TAPANGO - Dinas Pendidikan dan Kebudayaan
+365	SMP NEGERI SATAP BESOANGIN - Dinas Pendidikan dan Kebudayaan
+366	SMP NEGERI SATAP BUNG - Dinas Pendidikan dan Kebudayaan
+367	SMP NEGERI SATAP DAALA TIMUR - Dinas Pendidikan dan Kebudayaan
+368	SMP NEGERI SATAP JATI - Dinas Pendidikan dan Kebudayaan
+369	SMP NEGERI SATAP KATUMBANGAN - Dinas Pendidikan dan Kebudayaan
+370	SMP NEGERI SATAP LENGGO - Dinas Pendidikan dan Kebudayaan
+371	SMP NEGERI SATAP PANYAMPA - Dinas Pendidikan dan Kebudayaan
+372	SMP NEGERI SATAP PIRIANG TAPIKO - Dinas Pendidikan dan Kebudayaan
+373	SMP NEGERI SATAP POMBUTTU - Dinas Pendidikan dan Kebudayaan
+374	SMP NEGERI SATAP RATTE - Dinas Pendidikan dan Kebudayaan
+375	SMP NEGERI SATAP SABURA - Dinas Pendidikan dan Kebudayaan
+376	SMP NEGERI SATAP TARAMANU - Dinas Pendidikan dan Kebudayaan
+377	SMP NEGERI SATU ATAP LUYO - Dinas Pendidikan dan Kebudayaan
+378	SMP NEGERI SATU ATAP RATTEMATAMA - Dinas Pendidikan dan Kebudayaan
+379	SMP NEGERI TUBBI - Dinas Pendidikan dan Kebudayaan
+380	SMPN SATAP LILLI - Dinas Pendidikan dan Kebudayaan
+381	SMPN SATAP SALARRI - Dinas Pendidikan dan Kebudayaan
+382	SMPN SATAP TANDASSURA - Dinas Pendidikan dan Kebudayaan
+383	TK GUPPI KENJE - Dinas Pendidikan dan Kebudayaan
+384	TK NEGERI PEMBINA BASSEANG - Dinas Pendidikan dan Kebudayaan
+385	TK PEMBINA AL-ITTIHAD BONDE - Dinas Pendidikan dan Kebudayaan
+386	TK PEMBINA ALU - Dinas Pendidikan dan Kebudayaan
+387	TK PEMBINA CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+388	TK PEMBINA DARMA - Dinas Pendidikan dan Kebudayaan
+389	TK PEMBINA MALAQBI - Dinas Pendidikan dan Kebudayaan
+390	TK PEMBINA MATANGNGA - Dinas Pendidikan dan Kebudayaan
+391	TK PEMBINA NEGERI SURUANG - Dinas Pendidikan dan Kebudayaan
+392	TK PEMBINA PALECE - Dinas Pendidikan dan Kebudayaan
+393	TK PEMBINA PATAMPANUA - Dinas Pendidikan dan Kebudayaan
+394	TK PEMBINA PERTIWI CAMPALAGIAN - Dinas Pendidikan dan Kebudayaan
+395	TK PEMBINA SALUREBONG - Dinas Pendidikan dan Kebudayaan
+396	TK PEMBINA SARAMPU - Dinas Pendidikan dan Kebudayaan
+397	TK PEMBINA TUBBI TARAMANU - Dinas Pendidikan dan Kebudayaan
+398	TK SATU ATAP RISO - Dinas Pendidikan dan Kebudayaan
+399	DINAS PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA, PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK
+400	DINAS PERHUBUNGAN
+401	UPTD PARKIR - DINAS PERHUBUNGAN
+402	UPTD PENGUJIAN KENDARAAN BERMOTOR - DINAS PERHUBUNGAN
+403	UPTD TERMINAL - DINAS PERHUBUNGAN
+404	BIDANG PERINDUSTRIAN - DINAS PERINDUSTRIAN, PERDAGANGAN, KOPERASI DAN UKM
+405	DINAS PERINDUSTRIAN, PERDAGANGAN, KOPERASI DAN UKM
+406	Bidang Pengolahan, Pelestarian dan Pelayanan Perpustakaan - Dinas Perpustakaan dan Kearsipan
+407	Dinas Perpustakaan dan Kearsipan
+408	DINAS PERTANIAN DAN PANGAN
+409	UPTD BALAI BENIH DAN PALAWIJA - DINAS PERTANIAN DAN PANGAN
+410	UPTD BALAI PEMBIBITAN DAN HORTIKULTURA - DINAS PERTANIAN DAN PANGAN
+411	UPTD BALAI PEMBIBITAN PERKEBUNAN - DINAS PERTANIAN DAN PANGAN
+412	UPTD BREEDING CENTRE - DINAS PERTANIAN DAN PANGAN
+413	UPTD INSEMINASI - DINAS PERTANIAN DAN PANGAN
+414	UPTD KESEHATAN HEWAN - DINAS PERTANIAN DAN PANGAN
+415	UPTD RUMAH POTONG HEWAN DAN PASAR HEWAN - DINAS PERTANIAN DAN PANGAN
+416	DINAS PERUMAHAN, PERMUKIMAN DAN PERTANAHAN
+417	Dinas Sosial
+418	DINAS TRANSMIGRASI, TENAGA KERJA, ENERGI DAN SUMBER DAYA MINERAL
+419	Inspektorat Daerah
+420	Kantor Kecamatan Alu
+421	Kantor Kelurahan Petoosang - Kantor Kecamatan Alu
+422	Kantor Kecamatan Anreapi
+423	Kantor Kelurahan Anreapi - Kantor Kecamatan Anreapi
+424	Kantor Kecamatan Balanipa
+425	Kantor Kecamatan Binuang
+426	Kantor Kelurahan Amassangan - Kantor Kecamatan Binuang
+427	Kantor Kecamatan Bulo
+428	Kantor Kecamatan Campalagian
+429	Kantor Kelurahan Pappang - Kantor Kecamatan Campalagian
+430	Kantor Kecamatan Limboro
+431	Kantor Kelurahan Limboro - Kantor Kecamatan Limboro
+432	Kantor Kecamatan Luyo
+433	Kantor Kelurahan Batupanga - Kantor Kecamatan Luyo
+434	Kantor Kecamatan Mapilli
+435	Kantor Kelurahan Mapilli - Kantor Kecamatan Mapilli
+436	Kantor Kecamatan Matakali
+437	Kantor Kelurahan Matakali - Kantor Kecamatan Matakali
+438	Kantor Kecamatan Matangnga
+439	Kantor Kelurahan Matangnga - Kantor Kecamatan Matangnga
+440	Kantor Kecamatan Polewali
+441	Kantor Kelurahan Darma - Kantor Kecamatan Polewali
+442	Kantor Kelurahan Lantora - Kantor Kecamatan Polewali
+443	Kantor Kelurahan Madatte - Kantor Kecamatan Polewali
+444	Kantor Kelurahan Manding - Kantor Kecamatan Polewali
+445	Kantor Kelurahan Pekkabata - Kantor Kecamatan Polewali
+446	Kantor Kelurahan Polewali - Kantor Kecamatan Polewali
+447	Kantor Kelurahan Sulewatang - Kantor Kecamatan Polewali
+448	Kantor Kelurahan Takatidung - Kantor Kecamatan Polewali
+449	Kantor Kelurahan Wattang - Kantor Kecamatan Polewali
+450	Kantor Kecamatan Tapango
+451	Kantor Kelurahan Pelitakan - Kantor Kecamatan Tapango
+452	Kantor Kecamatan Tinambung
+453	Kantor Kelurahan Tinambung - Kantor Kecamatan Tinambung
+454	Kantor Kecamatan Tubbi Taramanu
+455	Kantor Kelurahan Taramanu - Kantor Kecamatan Tubbi Taramanu
+456	Kantor Kecamatan Wonomulyo
+457	Kantor Kelurahan Sidodadi - Kantor Kecamatan Wonomulyo
+458	RSUD Hajjah Andi Depu
+459	SATUAN POLISI PAMONG PRAJA
+460	UPTD PEMADAM KEBAKARAN - SATUAN POLISI PAMONG PRAJA
+461	Asisten Perekonomian dan Pembangunan - Sekretariat Daerah
+462	Asisten Pemerintahan dan Kesejahteraan Rakyat - Sekretariat Daerah
+463	Asisten Administrasi Umum - Sekretariat Daerah
+464	Sekretariat Dewan Perwakilan Rakyat Daerah
+465	Sekretariat Daerah

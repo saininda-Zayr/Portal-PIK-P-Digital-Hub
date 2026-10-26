@@ -51,8 +51,12 @@ import {
   Eye,
   Download,
   Maximize2,
-  Minimize2
+  Minimize2,
+  FileCheck
 } from 'lucide-react';
+import { SPKUploadModal } from './components/SPKUploadModal';
+import { SPKMonitoringView } from './components/SPKMonitoringView';
+import { UserManagementView, UserRole, ROLE_DETAILS } from './components/UserManagementView';
 import { 
   BarChart, 
   Bar, 
@@ -673,6 +677,7 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPublicForm, setShowPublicForm] = useState(false);
+  const [showSpkModal, setShowSpkModal] = useState(false);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -701,64 +706,92 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full max-w-md bg-black text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden"
+            className="w-full max-w-lg bg-black text-white p-8 sm:p-10 rounded-[3rem] shadow-2xl relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
             
-            <div className="text-center mb-10 relative z-10">
+            <div className="text-center mb-8 relative z-10">
               <img 
                 src="/cloudp_logo.jpg" 
                 alt="Cloud-P Logo" 
-                className="w-20 h-20 rounded-3xl object-cover mx-auto mb-6 shadow-xl border border-white/10" 
+                className="w-20 h-20 rounded-3xl object-cover mx-auto mb-5 shadow-xl border border-white/10" 
                 referrerPolicy="no-referrer"
               />
               <h1 className="text-3xl font-black tracking-tight mb-2">CLOUD-P</h1>
               <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">BKPSDM Polewali Mandar</p>
             </div>
 
-            <div className="space-y-6 relative z-10">
+            <div className="space-y-5 relative z-10">
               {error && (
                 <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-2xl text-center">
                   {error}
                 </div>
               )}
 
+              {/* FITUR UNGGAH SPK PPPK PARUH WAKTU */}
+              <div className="p-4 rounded-3xl bg-zinc-900/90 border border-yellow-400/30 space-y-3 relative overflow-hidden shadow-lg">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-400/5 rounded-full blur-xl pointer-events-none" />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full border border-yellow-400/20">
+                    Khusus Pegawai PPPK
+                  </span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Format PDF &bull; &lt; 1 MB</span>
+                </div>
+                
+                <button 
+                  onClick={() => setShowSpkModal(true)}
+                  className="w-full py-4 bg-gradient-to-r from-yellow-400 to-amber-400 hover:from-yellow-300 hover:to-amber-300 text-black font-black rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 text-xs sm:text-sm tracking-wide"
+                >
+                  <FileText size={19} className="shrink-0" />
+                  <span>UNGGAH SPK PPPK PARUH WAKTU</span>
+                </button>
+
+                <p className="text-center text-yellow-300/95 text-[11px] font-semibold leading-relaxed px-1">
+                  sebelum mengunggah berkas pastikan SPK telah bermaterai dan di tanda tangan
+                </p>
+              </div>
+
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-800"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase">
+                  <span className="bg-black px-3 text-zinc-500 font-black tracking-widest">Akses Staf / Layanan Data</span>
+                </div>
+              </div>
+
+              {/* Tombol Masuk Internal */}
               <button 
                 onClick={handleGoogleLogin}
                 disabled={loading}
-                className="w-full py-4 bg-white text-black font-black rounded-2xl shadow-lg hover:bg-zinc-100 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                className="w-full py-3.5 bg-white text-black font-black rounded-2xl shadow-lg hover:bg-zinc-100 transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 text-xs sm:text-sm"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <LogIn size={20} />
-                    MASUK DENGAN GOOGLE
+                    <LogIn size={18} />
+                    MASUK DENGAN GOOGLE (STAF)
                   </>
                 )}
               </button>
-              
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-zinc-800"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-black px-2 text-zinc-500 font-bold tracking-widest">Atau</span>
-                </div>
-              </div>
 
+              {/* Tombol Permintaan Data Publik */}
               <button 
                 onClick={() => setShowPublicForm(true)}
-                className="w-full py-4 bg-zinc-900 text-yellow-400 font-black rounded-2xl border border-yellow-400/20 hover:bg-zinc-800 transition-all flex items-center justify-center gap-3"
+                className="w-full py-3 bg-zinc-900/80 text-zinc-300 hover:text-white font-bold rounded-2xl border border-zinc-800 hover:bg-zinc-800 transition-all flex items-center justify-center gap-2.5 text-xs"
               >
-                <FileText size={20} />
+                <FileText size={16} className="text-zinc-400" />
                 AJUKAN PERMINTAAN DATA
               </button>
 
-              <p className="text-center text-zinc-500 text-[10px] leading-relaxed uppercase font-bold tracking-widest">
-                Layanan Publik Khusus Pihak Eksternal
+              <p className="text-center text-zinc-600 text-[10px] leading-relaxed uppercase font-bold tracking-widest pt-1">
+                Portal Resmi BKPSDM Kabupaten Polewali Mandar
               </p>
             </div>
+
+            {/* Modal Unggah SPK */}
+            <SPKUploadModal isOpen={showSpkModal} onClose={() => setShowSpkModal(false)} />
           </motion.div>
         ) : (
           <PublicRequestForm key="form" onClose={() => setShowPublicForm(false)} />
@@ -768,7 +801,7 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
   );
 };
 
-const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) => {
+const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin, isSuperAdmin, userRole }: any) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'datacenter', label: 'Pusat Data', icon: Database },
@@ -780,8 +813,14 @@ const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, isAdmin }: any) =
     { id: 'berakhlak', label: 'ASN BerAKHLAK', icon: Heart },
   ];
 
-  if (isAdmin) {
+  // Admin Bidang & Super Admin can access SPK PPPK and Requests
+  if (isAdmin || isSuperAdmin) {
+    menuItems.push({ id: 'spkpppk', label: 'Berkas SPK PPPK', icon: FileCheck });
     menuItems.push({ id: 'requests', label: 'Permintaan Data', icon: Bell });
+  }
+
+  // ONLY Super Admin can access Manajemen User
+  if (isSuperAdmin) {
     menuItems.push({ id: 'usermanagement', label: 'Manajemen User', icon: Users });
   }
 
@@ -6740,93 +6779,13 @@ const UnauthorizedPage = ({ onLogout }: { onLogout: () => void }) => {
   );
 };
 
-const UserManagement = () => {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('lastLogin', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    }, (error) => {
-      if (auth.currentUser) {
-        handleFirestoreError(error, OperationType.LIST, 'users');
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const toggleStatus = async (userId: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'authorized' ? 'pending' : 'authorized';
-    try {
-      await setDoc(doc(db, 'users', userId), { status: newStatus }, { merge: true });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'users');
-    }
-  };
-
+const UserManagement = ({ user, userData }: { user?: any; userData?: any }) => {
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <header>
-        <h1 className="text-4xl font-black text-black tracking-tight">MANAJEMEN USER</h1>
-        <p className="text-zinc-500 mt-2">Kelola izin akses staf ke dalam portal Cloud-P.</p>
-      </header>
-
-      <div className="bg-white rounded-3xl border border-black/5 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-zinc-50 text-xs font-bold uppercase tracking-widest text-zinc-400">
-              <tr>
-                <th className="px-6 py-4">Nama / Email</th>
-                <th className="px-6 py-4">Login Terakhir</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {users.map((u) => (
-                <tr key={u.id} className="hover:bg-zinc-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img src={u.photoURL} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
-                      <div>
-                        <p className="font-bold text-sm">{u.displayName}</p>
-                        <p className="text-xs text-zinc-400">{u.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-zinc-500">
-                    {u.lastLogin ? new Date(u.lastLogin).toLocaleString('id-ID') : '-'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                      u.status === 'authorized' ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
-                    )}>
-                      {u.status === 'authorized' ? 'Aktif' : 'Tertunda'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {u.email !== 'saininda@gmail.com' && (
-                      <button 
-                        onClick={() => toggleStatus(u.id, u.status)}
-                        className={cn(
-                          "text-xs font-bold uppercase tracking-widest hover:underline",
-                          u.status === 'authorized' ? "text-rose-500" : "text-emerald-600"
-                        )}
-                      >
-                        {u.status === 'authorized' ? 'Cabut Akses' : 'Beri Akses'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <UserManagementView
+      currentUserEmail={user?.email || ''}
+      currentUserId={user?.uid}
+      currentUserRole={userData?.role}
+    />
   );
 };
 
@@ -6847,6 +6806,25 @@ export default function App() {
       sessionStorage.setItem('google_drive_token', token);
     } else {
       sessionStorage.removeItem('google_drive_token');
+    }
+  };
+
+  const handleConnectDrive = async (): Promise<string | null> => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/drive');
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || null;
+      if (token) {
+        setGoogleAccessToken(token);
+        sessionStorage.setItem('google_drive_token', token);
+      }
+      return token;
+    } catch (err) {
+      console.error('Error connecting Google Drive:', err);
+      alert('Gagal menghubungkan ke Google Drive.');
+      return null;
     }
   };
 
@@ -6900,8 +6878,8 @@ export default function App() {
           photoURL: (user.photoURL || '').substring(0, 1000),
           lastLogin: new Date().toISOString(),
           updatedAt: serverTimestamp(),
-          role: existingData?.role || (isAdminUser ? 'admin' : 'staff'),
-          status: existingData?.status || (isAdminUser ? 'authorized' : 'pending'),
+          role: isAdminUser ? 'super_admin' : (existingData?.role || 'staff'),
+          status: isAdminUser ? 'authorized' : (existingData?.status || 'pending'),
           createdAt: existingData?.createdAt || serverTimestamp(),
         };
 
@@ -6940,7 +6918,7 @@ export default function App() {
         console.error("Profile sync error details:", err.message || err);
         // Fallback for authorized admins if check fails
         if (isAdminUser) {
-          setUserData({ status: 'authorized', role: 'admin' });
+          setUserData({ status: 'authorized', role: 'super_admin' });
         }
         setAuthReady(true);
       }
@@ -6969,8 +6947,14 @@ export default function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Access Control: Only allow authorized users or the main admin
-  const isAuthorized = userData?.status === 'authorized' || user.email === 'saininda@gmail.com';
+  // Multi-Level Access Control (RBAC):
+  const isOwner = user.email === 'saininda@gmail.com' || user.uid === 'lUGYop8JDvcT2SJxjiEzBC8PD2p2';
+  const effectiveRole: UserRole = isOwner ? 'super_admin' : (userData?.role as UserRole) || 'staff';
+  const isSuperAdmin = isOwner || effectiveRole === 'super_admin';
+  const isAdmin = isSuperAdmin || effectiveRole === 'admin';
+  const isStaff = effectiveRole === 'staff';
+  const isViewer = effectiveRole === 'viewer';
+  const isAuthorized = userData?.status === 'authorized' || isOwner;
 
   if (!isAuthorized) {
     return <UnauthorizedPage onLogout={() => signOut(auth)} />;
@@ -6979,15 +6963,41 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard user={user} />;
-      case 'datacenter': return <DataCenter user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
-      case 'arsipdigital': return <ArsipDigital user={user} userData={userData} googleAccessToken={googleAccessToken} setGoogleAccessToken={handleLoginSuccess} />;
+      case 'datacenter': return (
+        <DataCenter 
+          user={user} 
+          userData={userData} 
+          googleAccessToken={googleAccessToken} 
+          setGoogleAccessToken={handleLoginSuccess} 
+        />
+      );
+      case 'arsipdigital': return (
+        <ArsipDigital 
+          user={user} 
+          userData={userData} 
+          googleAccessToken={googleAccessToken} 
+          setGoogleAccessToken={handleLoginSuccess} 
+        />
+      );
+      case 'spkpppk': return (
+        <SPKMonitoringView 
+          adminGoogleAccessToken={googleAccessToken} 
+          onConnectAdminDrive={handleConnectDrive} 
+        />
+      );
       case 'requests': return <RequestManagement />;
-      case 'workhub': return <WorkHub isAdmin={userData?.role === 'admin'} />;
+      case 'workhub': return <WorkHub isAdmin={isAdmin} />;
       case 'infografis': return <InfografisAlur />;
       case 'panduancepat': return <PanduanCepat />;
       case 'tutorials': return <PusatTutorial />;
       case 'berakhlak': return <BerAKHLAK />;
-      case 'usermanagement': return <UserManagement />;
+      case 'usermanagement': return (
+        <UserManagementView 
+          currentUserEmail={user.email || ''} 
+          currentUserId={user.uid}
+          currentUserRole={effectiveRole}
+        />
+      );
       default: return <Dashboard user={user} />;
     }
   };
@@ -7008,7 +7018,9 @@ export default function App() {
           setActiveTab={setActiveTab} 
           isOpen={isSidebarOpen} 
           setIsOpen={setIsSidebarOpen} 
-          isAdmin={user.email === 'saininda@gmail.com'}
+          isAdmin={isAdmin}
+          isSuperAdmin={isSuperAdmin}
+          userRole={effectiveRole}
         />
 
         <main className={cn(
@@ -7020,7 +7032,22 @@ export default function App() {
             <div className="flex items-center justify-between mb-12">
               <div className="flex items-center gap-4">
                 <div className="hidden lg:block">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Pagi,</p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">Selamat Datang,</p>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      effectiveRole === 'super_admin'
+                        ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                        : effectiveRole === 'admin'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                        : effectiveRole === 'viewer'
+                        ? 'bg-zinc-100 text-zinc-700 border border-zinc-200'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    }`}>
+                      {effectiveRole === 'super_admin' ? '👑 Super Admin' : 
+                       effectiveRole === 'admin' ? '⭐ Admin Bidang' : 
+                       effectiveRole === 'viewer' ? '👁️ Viewer' : '💼 Staf Operator'}
+                    </span>
+                  </div>
                   <h2 className="text-lg font-bold">{user.displayName || 'Staf Cloud-P'}</h2>
                 </div>
                 <div className="lg:hidden">
@@ -7043,7 +7070,18 @@ export default function App() {
                 <div className="h-8 w-[1px] bg-zinc-100" />
                 <div className="flex items-center gap-3 px-2">
                   <div className="text-right hidden sm:block">
-                    <p className="text-xs font-bold">{user.displayName || 'User'}</p>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <p className="text-xs font-bold">{user.displayName || 'User'}</p>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                        effectiveRole === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+                        effectiveRole === 'admin' ? 'bg-amber-100 text-amber-800' :
+                        effectiveRole === 'viewer' ? 'bg-zinc-100 text-zinc-600' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {effectiveRole === 'super_admin' ? 'Super Admin' :
+                         effectiveRole === 'admin' ? 'Admin' :
+                         effectiveRole === 'viewer' ? 'Viewer' : 'Operator'}
+                      </span>
+                    </div>
                     <button 
                       onClick={handleLogout}
                       className="text-[10px] text-rose-500 font-bold uppercase tracking-wider hover:underline"

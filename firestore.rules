@@ -19,23 +19,41 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
 
-    function isAdmin() {
+    function isSuperAdmin() {
       return isSignedIn() && (
         (request.auth.token.email == "saininda@gmail.com") ||
         (request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
+      );
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (
+        isSignedIn() && (
+          (request.auth.token.email == "saininda@gmail.com") ||
+          (request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'admin'])
+        )
       );
     }
 
     function isAuthorized() {
-      // Direct pass for admins or specific IDs
+      // Direct pass for admins or authorized users
       return isSignedIn() && (
         (request.auth.token.email == "saininda@gmail.com") ||
         (request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2") ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin', 'admin'] || 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'authorized'))
+      );
+    }
+
+    function isWriter() {
+      return isAuthorized() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role != 'viewer'
       );
     }
 
@@ -49,7 +67,7 @@ service cloud.firestore {
       return data.keys().hasAll(requiredFields) &&
              data.displayName is string && data.displayName.size() <= 200 &&
              data.email is string && data.email.size() <= 200 &&
-             data.role in ['admin', 'staff'] &&
+             data.role in ['super_admin', 'admin', 'staff', 'viewer'] &&
              data.status in ['authorized', 'pending'] &&
              (data.createdAt is string || data.createdAt is timestamp) &&
              (data.updatedAt is string || data.updatedAt is timestamp) &&
@@ -59,12 +77,12 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
-      allow list: if isSignedIn() && (request.auth.token.email == "saininda@gmail.com" || request.auth.uid == "lUGYop8JDvcT2SJxjiEzBC8PD2p2" || isAuthorized()); 
+      allow list: if isSignedIn() && (isSuperAdmin() || isAuthorized()); 
       
       allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
-      allow update: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isSuperAdmin());
       
-      allow delete: if isAdmin() && isValidId(userId);
+      allow delete: if isSuperAdmin() && isValidId(userId);
     }
 
     // --- Stats ---
@@ -106,9 +124,9 @@ service cloud.firestore {
 
     match /documents/{docId} {
       allow list, get: if isAuthorized();
-      allow create: if isAuthorized() && isValidDocument(incoming()) && 
+      allow create: if isWriter() && isValidDocument(incoming()) && 
                        incoming().uploadedBy == request.auth.uid;
-      allow update: if (isAdmin() || (isAuthorized() && existing().uploadedBy == request.auth.uid)) && 
+      allow update: if (isAdmin() || (isWriter() && existing().uploadedBy == request.auth.uid)) && 
                        isValidDocument(incoming()) &&
                        incoming().createdAt == existing().createdAt;
       allow delete: if isAdmin();
@@ -122,7 +140,7 @@ service cloud.firestore {
 
     match /archives/{archiveId} {
       allow list, get: if isAuthorized();
-      allow create: if isAuthorized() && isValidArchive(incoming());
+      allow create: if isWriter() && isValidArchive(incoming());
       allow update: if isAdmin() && isValidArchive(incoming());
       allow delete: if isAdmin();
     }
@@ -135,7 +153,7 @@ service cloud.firestore {
 
     match /tasks/{taskId} {
       allow list, get: if isAuthorized();
-      allow create, update: if isAuthorized() && isValidTask(incoming());
+      allow create, update: if isWriter() && isValidTask(incoming());
       allow delete: if isAdmin();
     }
 
@@ -148,6 +166,29 @@ service cloud.firestore {
     // --- Announcements ---
     match /announcements/{announcementId} {
       allow list, get: if isAuthorized();
+      allow write: if isAdmin();
+    }
+
+    // --- SPK PPPK Submissions ---
+    function isValidSpkSubmission(data) {
+      return data.keys().hasAll(['nip', 'nama', 'opd', 'unitKerja', 'fileName', 'fileSize', 'uploadedAt']) &&
+             data.nip is string && data.nip.size() <= 60 &&
+             data.nama is string && data.nama.size() <= 250 &&
+             data.opd is string && data.opd.size() <= 250 &&
+             data.unitKerja is string && data.unitKerja.size() <= 250 &&
+             data.fileName is string && data.fileName.size() <= 500 &&
+             data.fileSize is number && data.fileSize <= 1048576; // Under 1 MB
+    }
+
+    match /spk_pppk_submissions/{submissionId} {
+      allow list, get: if isAuthorized();
+      allow create: if isValidSpkSubmission(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // --- System Settings (e.g. spk_drive_config) ---
+    match /system_settings/{settingId} {
+      allow read: if true;
       allow write: if isAdmin();
     }
   }

@@ -1,0 +1,692 @@
+[
+  {
+    "opd": "Badan Kepegawaian, Pendidikan dan Pelatihan",
+    "unitKerjaList": [
+      "Badan Kepegawaian, Pendidikan dan Pelatihan"
+    ]
+  },
+  {
+    "opd": "Badan Kesatuan Bangsa dan Politik",
+    "unitKerjaList": [
+      "Badan Kesatuan Bangsa dan Politik"
+    ]
+  },
+  {
+    "opd": "BADAN KEUANGAN",
+    "unitKerjaList": [
+      "BADAN KEUANGAN"
+    ]
+  },
+  {
+    "opd": "Badan Penanggulangan Bencana Daerah",
+    "unitKerjaList": [
+      "Badan Penanggulangan Bencana Daerah"
+    ]
+  },
+  {
+    "opd": "BADAN PENDAPATAN",
+    "unitKerjaList": [
+      "BADAN PENDAPATAN"
+    ]
+  },
+  {
+    "opd": "BADAN PENELITIAN PENGEMBANGAN DAN PERENCANAAN",
+    "unitKerjaList": [
+      "BADAN PENELITIAN PENGEMBANGAN DAN PERENCANAAN (Sekretariat / Induk)",
+      "UPTD AGRO TECHNO PARK"
+    ]
+  },
+  {
+    "opd": "DINAS KELAUTAN DAN PERIKANAN",
+    "unitKerjaList": [
+      "DINAS KELAUTAN DAN PERIKANAN"
+    ]
+  },
+  {
+    "opd": "Dinas Kependudukan dan Pencatatan Sipil",
+    "unitKerjaList": [
+      "Dinas Kependudukan dan Pencatatan Sipil"
+    ]
+  },
+  {
+    "opd": "Dinas Kesehatan",
+    "unitKerjaList": [
+      "Dinas Kesehatan (Sekretariat / Induk)",
+      "RUMAH SAKIT UMUM DAERAH WONOMULYO",
+      "UPTD PUSKESMAS ANREAPI",
+      "UPTD PUSKESMAS BATUPANGA",
+      "UPTD PUSKESMAS BINUANG",
+      "UPTD PUSKESMAS BULO",
+      "UPTD PUSKESMAS CAMPALAGIAN",
+      "UPTD PUSKESMAS KATUMBANGAN",
+      "UPTD PUSKESMAS KEBUNSARI",
+      "UPTD PUSKESMAS LIMBORO",
+      "UPTD PUSKESMAS MAPILLI",
+      "UPTD PUSKESMAS MASSENGA",
+      "UPTD PUSKESMAS MATAKALI",
+      "UPTD PUSKESMAS MATANGNGA",
+      "UPTD PUSKESMAS PAMBUSUANG",
+      "UPTD PUSKESMAS PEKKABATA",
+      "UPTD PUSKESMAS PELITAKAN",
+      "UPTD PUSKESMAS POLEWALI",
+      "UPTD PUSKESMAS TINAMBUNG",
+      "UPTD PUSKESMAS TUTALLU",
+      "UPTD PUSKESMAS TUTAR",
+      "UPTD PUSKESMAS WONOMULYO"
+    ]
+  },
+  {
+    "opd": "Dinas Komunikasi, Informatika, Statistik dan Persandian",
+    "unitKerjaList": [
+      "Dinas Komunikasi, Informatika, Statistik dan Persandian"
+    ]
+  },
+  {
+    "opd": "Dinas Lingkungan Hidup dan Kehutanan",
+    "unitKerjaList": [
+      "Dinas Lingkungan Hidup dan Kehutanan"
+    ]
+  },
+  {
+    "opd": "Dinas Pekerjaan Umum dan Penataan Ruang",
+    "unitKerjaList": [
+      "Dinas Pekerjaan Umum dan Penataan Ruang (Sekretariat / Induk)",
+      "UPTD PENGELOLA SUMBER DAYA AIR WILAYAH I",
+      "UPTD PENGELOLA SUMBER DAYA AIR WILAYAH II",
+      "UPTD PENGELOLA SUMBER DAYA AIR WILAYAH III",
+      "UPTD PENGELOLAAN AIR LIMBAH",
+      "UPTD PERALATAN DAN PERBENGKELAN"
+    ]
+  },
+  {
+    "opd": "Dinas Pemberdayaan Masyarakat dan Desa",
+    "unitKerjaList": [
+      "Dinas Pemberdayaan Masyarakat dan Desa"
+    ]
+  },
+  {
+    "opd": "DINAS PEMUDA, OLAHRAGA DAN PARIWISATA",
+    "unitKerjaList": [
+      "DINAS PEMUDA, OLAHRAGA DAN PARIWISATA (Sekretariat / Induk)",
+      "UPTD SPORT CENTRE"
+    ]
+  },
+  {
+    "opd": "Dinas Penanaman Modal dan Pelayanan Terpadu Satu Pintu",
+    "unitKerjaList": [
+      "Dinas Penanaman Modal dan Pelayanan Terpadu Satu Pintu"
+    ]
+  },
+  {
+    "opd": "Dinas Pendidikan dan Kebudayaan",
+    "unitKerjaList": [
+      "Dinas Pendidikan dan Kebudayaan (Sekretariat / Induk)",
+      "SD NEGERI 005 SIDODADI",
+      "SD NEGERI 006 SIDODADI",
+      "SD NEGERI 007 SIDODADI",
+      "SD NEGERI 012 GALESO",
+      "SD NEGERI 013 SUMBERJO",
+      "SD NEGERI 014 PULAU BATTOA",
+      "SD NEGERI 014 SUMBERJO",
+      "SD NEGERI 015 SUMBERJO",
+      "SD NEGERI 015 TONYAMAN",
+      "SD NEGERI 016 SARAMPU",
+      "SD NEGERI 017 SIDOREJO",
+      "SD NEGERI 018 LOMBOK",
+      "SD NEGERI 020 KEBUNSARI",
+      "SD NEGERI 022 KEBUNSARI",
+      "SD NEGERI 023 KEBUNSARI",
+      "SD NEGERI 029 SUMBERJO",
+      "SD NEGERI 030 BINUANG",
+      "SD NEGERI 031 MIRRING",
+      "SD NEGERI 031 TUMPILING",
+      "SD NEGERI 032 KEBUNSARI",
+      "SD NEGERI 036 PUCCEDA",
+      "SD NEGERI 037 LEKOPADIS",
+      "SD NEGERI 043 KEBUN DALAM",
+      "SD NEGERI 046 SIDOREJO",
+      "SD NEGERI 052 GALESO",
+      "SD NEGERI 052 MAMMI",
+      "SD NEGERI 053 SARAMPU",
+      "SD NEGERI 054 RAPPOANG",
+      "SD NEGERI 055 BAJOE",
+      "SD NEGERI 058 TETE",
+      "SD NEGERI 059 AMOLA",
+      "SD NEGERI 060 MAMPIE",
+      "SD NEGERI 061 MACERA",
+      "SD NEGERI 063 BAKKA BAKKA",
+      "SD NEGERI 069 LANRAE",
+      "SD NEGERI BANUA BARU",
+      "SD NEGERI BINUANG",
+      "SD NEGERI KAMPUNO",
+      "SMP NEGERI 1 WONOMULYO",
+      "SMP NEGERI 2 MAPILLI",
+      "SMP NEGERI 2 WONOMULYO",
+      "SMP NEGERI 3 MAPILLI",
+      "SMP NEGERI 3 WONOMULYO",
+      "SMP NEGERI 4 TINAMBUNG",
+      "SMP NEGERI 5 TINAMBUNG",
+      "SMP NEGERI 5 WONOMULYO",
+      "SMP NEGERI 6 TINAMBUNG",
+      "SMP NEGERI 7 POLEWALI",
+      "SMP NEGERI 7 WONOMULYO",
+      "SMP NEGERI BINUANG",
+      "SMP NEGERI MAPILLI",
+      "SMP NEGERI PASANG",
+      "SMP NEGERI SATU ATAP KALEOK",
+      "TK PEMBINA TINAMBUNG",
+      "SANGGAR KEGIATAN BELAJAR",
+      "SD NEGERI 001 CAMPALAGIAN",
+      "SD NEGERI 001 MATAKALI",
+      "SD NEGERI 001 PETOOSANG",
+      "SD NEGERI 001 POLEWALI",
+      "SD NEGERI 001 TINAMBUNG",
+      "SD NEGERI 002 CAMPALAGIAN",
+      "SD NEGERI 002 MAPILLI",
+      "SD NEGERI 002 POLEWALI",
+      "SD NEGERI 002 PUMBEJAGI",
+      "SD NEGERI 003 CAMPALAGIAN",
+      "SD NEGERI 003 KANDEAPI",
+      "SD NEGERI 003 LAMPA",
+      "SD NEGERI 003 POLEWALI",
+      "SD NEGERI 003 SOSSO",
+      "SD NEGERI 004 BUKU",
+      "SD NEGERI 004 KANDEMENG",
+      "SD NEGERI 004 MOMBI",
+      "SD NEGERI 004 POLEWALI",
+      "SD NEGERI 004 UJUNG",
+      "SD NEGERI 005 LAPEO",
+      "SD NEGERI 005 PAMBUSUANG",
+      "SD NEGERI 005 PAO-PAO",
+      "SD NEGERI 006 LABUANG",
+      "SD NEGERI 006 PAMBUSUANG",
+      "SD NEGERI 006 PUPPURING",
+      "SD NEGERI 007 BULO-BULO",
+      "SD NEGERI 007 LANTORA",
+      "SD NEGERI 007 PARAPPE",
+      "SD NEGERI 008 CAMBA-CAMBA",
+      "SD NEGERI 008 MATANGNGA",
+      "SD NEGERI 008 PANYAMPA",
+      "SD NEGERI 008 SULEWATANG",
+      "SD NEGERI 008 TARAMANU",
+      "SD NEGERI 009 KATUMBANGAN",
+      "SD NEGERI 009 LOMBOK",
+      "SD NEGERI 009 TAKATIDUNG",
+      "SD NEGERI 009 TAPUA",
+      "SD NEGERI 010 BATU",
+      "SD NEGERI 010 KATUMBANGAN",
+      "SD NEGERI 010 PALECE",
+      "SD NEGERI 011 RAPPOGADING",
+      "SD NEGERI 011 RATTEKALLANG",
+      "SD NEGERI 011 TEPPO",
+      "SD NEGERI 012 GATTUNGAN",
+      "SD NEGERI 012 KARAMA",
+      "SD NEGERI 012 TUBBI",
+      "SD NEGERI 013 BOTTO",
+      "SD NEGERI 013 MATANGNGA",
+      "SD NEGERI 013 MOJOPAHIT",
+      "SD NEGERI 014 PETOOSANG",
+      "SD NEGERI 014 SUMARANG",
+      "SD NEGERI 014 TANGNGA TANGNGA",
+      "SD NEGERI 015 BERU-BERU",
+      "SD NEGERI 015 PUMBEJAGI",
+      "SD NEGERI 015 TANDUNG",
+      "SD NEGERI 016 BUTTU",
+      "SD NEGERI 016 TANDUNG",
+      "SD NEGERI 017 BONRA",
+      "SD NEGERI 017 BUNG",
+      "SD NEGERI 017 MANDING",
+      "SD NEGERI 017 NAPO",
+      "SD NEGERI 017 TAPUA",
+      "SD NEGERI 018 BONRA",
+      "SD NEGERI 018 MANDING",
+      "SD NEGERI 018 RUMPA",
+      "SD NEGERI 019 BALANIPA",
+      "SD NEGERI 019 MAMBU",
+      "SD NEGERI 019 MANDING",
+      "SD NEGERI 019 PAROPO",
+      "SD NEGERI 019 SILA-SILA",
+      "SD NEGERI 020 GALUNG",
+      "SD NEGERI 020 PALLIS",
+      "SD NEGERI 020 PUSU",
+      "SD NEGERI 020 REA BARAT",
+      "SD NEGERI 021 BUNGA-BUNGA",
+      "SD NEGERI 021 LENA",
+      "SD NEGERI 021 PAMOMBONG",
+      "SD NEGERI 021 RATTE",
+      "SD NEGERI 021 TAMMANGALLE",
+      "SD NEGERI 022 BASSEANG",
+      "SD NEGERI 022 LAMBANAN",
+      "SD NEGERI 022 PALLEMBONGAN",
+      "SD NEGERI 022 PIRIANG",
+      "SD NEGERI 023 DARA",
+      "SD NEGERI 023 KAMPUNG BARU",
+      "SD NEGERI 023 SAYOANG",
+      "SD NEGERI 023 TODANG-TODANG",
+      "SD NEGERI 024 KAROKE",
+      "SD NEGERI 024 KUNYI",
+      "SD NEGERI 024 PELITAKAN",
+      "SD NEGERI 024 TAPPARANG",
+      "SD NEGERI 025 KAWELAAN",
+      "SD NEGERI 025 KELAPA DUA",
+      "SD NEGERI 025 MOSSO",
+      "SD NEGERI 025 PUSSUI",
+      "SD NEGERI 025 RAPPANG",
+      "SD NEGERI 026 BANUA BARU",
+      "SD NEGERI 026 BULO",
+      "SD NEGERI 026 KAMANDE",
+      "SD NEGERI 026 LANTORA",
+      "SD NEGERI 026 SAMASUNDU",
+      "SD NEGERI 027 RATTEMATAMA",
+      "SD NEGERI 027 RENGGEANG",
+      "SD NEGERI 027 TAKATIDUNG",
+      "SD NEGERI 027 TAPANGO",
+      "SD NEGERI 028 LAPEO",
+      "SD NEGERI 028 LILLI",
+      "SD NEGERI 028 LULLUNG",
+      "SD NEGERI 028 PEKKABATA",
+      "SD NEGERI 028 TANDASSURA",
+      "SD NEGERI 029 BOTTO",
+      "SD NEGERI 029 PALUPPUNG",
+      "SD NEGERI 029 TANRO",
+      "SD NEGERI 030 LEMBANG-LEMBANG",
+      "SD NEGERI 030 TANASE",
+      "SD NEGERI 031 BANU-BANUA",
+      "SD NEGERI 031 KATUMBANGAN",
+      "SD NEGERI 031 SUMARRANG",
+      "SD NEGERI 032 KUNYI",
+      "SD NEGERI 032 PAMBUSUANG",
+      "SD NEGERI 032 SUMARANG",
+      "SD NEGERI 033 DARMA",
+      "SD NEGERI 033 MALIMBUNG",
+      "SD NEGERI 033 PELITAKAN",
+      "SD NEGERI 033 SURUANG",
+      "SD NEGERI 033 TAMMANGALLE",
+      "SD NEGERI 034 ALLU",
+      "SD NEGERI 034 NAPO",
+      "SD NEGERI 034 RAPPANG",
+      "SD NEGERI 034 RINGINAN",
+      "SD NEGERI 035 BUSSU",
+      "SD NEGERI 035 LIMBORO",
+      "SD NEGERI 035 LUTANG",
+      "SD NEGERI 036 BONDE",
+      "SD NEGERI 037 LALIKO",
+      "SD NEGERI 038 KANUSUANG",
+      "SD NEGERI 038 TIBUNG",
+      "SD NEGERI 039 LAMPA TOA",
+      "SD NEGERI 039 MANDING",
+      "SD NEGERI 039 PANGGALO",
+      "SD NEGERI 040 BELUAK",
+      "SD NEGERI 040 LABASANG",
+      "SD NEGERI 040 LEMBANG-LEMBANG",
+      "SD NEGERI 040 PALLUDAI",
+      "SD NEGERI 041 PUCCADI",
+      "SD NEGERI 041 PUNDAMBU",
+      "SD NEGERI 041 TANDASSURA",
+      "SD NEGERI 042 KUNYI",
+      "SD NEGERI 042 PANGALLOANG",
+      "SD NEGERI 043 BULUBAWANG",
+      "SD NEGERI 043 BUMBUNG",
+      "SD NEGERI 043 KAIDA",
+      "SD NEGERI 044 BUTTU LAMBA",
+      "SD NEGERI 044 KAMPUNG BARU SUBIK",
+      "SD NEGERI 044 RISO",
+      "SD NEGERI 045 BAULU",
+      "SD NEGERI 045 BERU-BERU",
+      "SD NEGERI 045 SALARRI",
+      "SD NEGERI 046 ARABUA",
+      "SD NEGERI 046 BARU PARAPPE",
+      "SD NEGERI 046 PARATTEAN",
+      "SD NEGERI 047 BAURUNG",
+      "SD NEGERI 047 TANDUNG",
+      "SD NEGERI 048 MAMBULILLING",
+      "SD NEGERI 048 MATAKALI",
+      "SD NEGERI 048 PESSUNAN",
+      "SD NEGERI 048 PUPENGA",
+      "SD NEGERI 049 LENA",
+      "SD NEGERI 050 KATAPANG",
+      "SD NEGERI 050 MANDING",
+      "SD NEGERI 050 PANDEWULAWANG",
+      "SD NEGERI 050 PAPPANG",
+      "SD NEGERI 051 LAMPA",
+      "SD NEGERI 051 LAMPOKO",
+      "SD NEGERI 051 LITAPUTE",
+      "SD NEGERI 052 JEMARANG",
+      "SD NEGERI 052 MAMBU",
+      "SD NEGERI 053 PARIANGAN",
+      "SD NEGERI 054 PAREDEANG",
+      "SD NEGERI 054 UJUNG GALUNG",
+      "SD NEGERI 055 KANDEAPI",
+      "SD NEGERI 055 PASSAIRANG",
+      "SD NEGERI 056 LAMASARIANG",
+      "SD NEGERI 056 LELUPANG",
+      "SD NEGERI 056 WONOSARI",
+      "SD NEGERI 057 LAMBEPADA",
+      "SD NEGERI 057 PAPPANDANGAN",
+      "SD NEGERI 057 PULLIWA",
+      "SD NEGERI 057 SIRATUANG",
+      "SD NEGERI 058 BEROANGIN",
+      "SD NEGERI 058 GALUNG LEGO",
+      "SD NEGERI 058 PARAPPE",
+      "SD NEGERI 059 KAMPUNG LANU",
+      "SD NEGERI 059 SABURA",
+      "SD NEGERI 059 SUMAEL",
+      "SD NEGERI 060 LOLLE",
+      "SD NEGERI 060 MANUMANUKANG",
+      "SD NEGERI 060 PEKKABATA",
+      "SD NEGERI 061 TIGAS",
+      "SD NEGERI 062 PALLEMBONGAN",
+      "SD NEGERI 062 SANDANGAN",
+      "SD NEGERI 063 BATU",
+      "SD NEGERI 063 LAGIAGI",
+      "SD NEGERI 063 SAWANG",
+      "SD NEGERI 064 JAMBUMALEA",
+      "SD NEGERI 064 KAMPUNG TULU",
+      "SD NEGERI 064 LIMBORO",
+      "SD NEGERI 065 BALA",
+      "SD NEGERI 065 KURMA",
+      "SD NEGERI 065 PULILALI",
+      "SD NEGERI 066 CAPPEGO",
+      "SD NEGERI 066 PEKKABATA",
+      "SD NEGERI 067 LAMBE",
+      "SD NEGERI 067 SIMBALATU",
+      "SD NEGERI 068 SATTOKO",
+      "SD NEGERI 070 KAROMBANG",
+      "SD NEGERI 070 TONDO",
+      "SD NEGERI 071 JATI",
+      "SD NEGERI 071 LENGGO",
+      "SD NEGERI 072 DAALA",
+      "SD NEGERI GALU GALUNG",
+      "SD NEGERI PUNCAK LANDI BARU",
+      "SD NEGERI RURA",
+      "SD NEGERI SIKKA",
+      "SD NEGERI TALANGGA",
+      "SD NEGERI TRANSMIGRASI PATAMBANUA",
+      "SMP NEGERI 1 CAMPALAGIAN",
+      "SMP NEGERI 1 POLEWALI",
+      "SMP NEGERI 1 TINAMBUNG",
+      "SMP NEGERI 1 TUTALLU",
+      "SMP NEGERI 2 ALU",
+      "SMP NEGERI 2 BALANIPA",
+      "SMP NEGERI 2 CAMPALAGIAN",
+      "SMP NEGERI 2 MATANGNGA",
+      "SMP NEGERI 2 POLEWALI",
+      "SMP NEGERI 2 TINAMBUNG",
+      "SMP NEGERI 2 TUTALLU",
+      "SMP NEGERI 3 ALU",
+      "SMP NEGERI 3 CAMPALAGIAN",
+      "SMP NEGERI 3 POLEWALI",
+      "SMP NEGERI 3 SUMARORONG",
+      "SMP NEGERI 3 TAPANGO",
+      "SMP NEGERI 3 TINAMBUNG",
+      "SMP NEGERI 4 CAMPALAGIAN",
+      "SMP NEGERI 4 LUYO",
+      "SMP NEGERI 4 POLEWALI",
+      "SMP NEGERI 4 TUTAR",
+      "SMP NEGERI 4 WONOMULYO",
+      "SMP NEGERI 5 CAMPALAGIAN",
+      "SMP NEGERI 5 POLEWALI",
+      "SMP NEGERI 5 TUTAR",
+      "SMP NEGERI 6 CAMPALAGIAN",
+      "SMP NEGERI 6 POLEWALI",
+      "SMP NEGERI 6 TUTAR",
+      "SMP NEGERI 6 WONOMULYO",
+      "SMP NEGERI 7 CAMPALAGIAN-SURUANG",
+      "SMP NEGERI ANREAPI",
+      "SMP NEGERI BATU",
+      "SMP NEGERI BULO",
+      "SMP NEGERI KATUMBANGAN LEMO",
+      "SMP NEGERI LIMBORO",
+      "SMP NEGERI LUYO",
+      "SMP NEGERI MATAKALI",
+      "SMP NEGERI PADANG MAWALLE",
+      "SMP NEGERI RAPPANG TAPANGO",
+      "SMP NEGERI SATAP BESOANGIN",
+      "SMP NEGERI SATAP BUNG",
+      "SMP NEGERI SATAP DAALA TIMUR",
+      "SMP NEGERI SATAP JATI",
+      "SMP NEGERI SATAP KATUMBANGAN",
+      "SMP NEGERI SATAP LENGGO",
+      "SMP NEGERI SATAP PANYAMPA",
+      "SMP NEGERI SATAP PIRIANG TAPIKO",
+      "SMP NEGERI SATAP POMBUTTU",
+      "SMP NEGERI SATAP RATTE",
+      "SMP NEGERI SATAP SABURA",
+      "SMP NEGERI SATAP TARAMANU",
+      "SMP NEGERI SATU ATAP LUYO",
+      "SMP NEGERI SATU ATAP RATTEMATAMA",
+      "SMP NEGERI TUBBI",
+      "SMPN SATAP LILLI",
+      "SMPN SATAP SALARRI",
+      "SMPN SATAP TANDASSURA",
+      "TK GUPPI KENJE",
+      "TK NEGERI PEMBINA BASSEANG",
+      "TK PEMBINA AL-ITTIHAD BONDE",
+      "TK PEMBINA ALU",
+      "TK PEMBINA CAMPALAGIAN",
+      "TK PEMBINA DARMA",
+      "TK PEMBINA MALAQBI",
+      "TK PEMBINA MATANGNGA",
+      "TK PEMBINA NEGERI SURUANG",
+      "TK PEMBINA PALECE",
+      "TK PEMBINA PATAMPANUA",
+      "TK PEMBINA PERTIWI CAMPALAGIAN",
+      "TK PEMBINA SALUREBONG",
+      "TK PEMBINA SARAMPU",
+      "TK PEMBINA TUBBI TARAMANU",
+      "TK SATU ATAP RISO"
+    ]
+  },
+  {
+    "opd": "DINAS PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA, PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK",
+    "unitKerjaList": [
+      "DINAS PENGENDALIAN PENDUDUK DAN KELUARGA BERENCANA, PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK"
+    ]
+  },
+  {
+    "opd": "DINAS PERHUBUNGAN",
+    "unitKerjaList": [
+      "DINAS PERHUBUNGAN (Sekretariat / Induk)",
+      "UPTD PARKIR",
+      "UPTD PENGUJIAN KENDARAAN BERMOTOR",
+      "UPTD TERMINAL"
+    ]
+  },
+  {
+    "opd": "DINAS PERINDUSTRIAN, PERDAGANGAN, KOPERASI DAN UKM",
+    "unitKerjaList": [
+      "DINAS PERINDUSTRIAN, PERDAGANGAN, KOPERASI DAN UKM (Sekretariat / Induk)",
+      "BIDANG PERINDUSTRIAN"
+    ]
+  },
+  {
+    "opd": "Dinas Perpustakaan dan Kearsipan",
+    "unitKerjaList": [
+      "Dinas Perpustakaan dan Kearsipan (Sekretariat / Induk)",
+      "Bidang Pengolahan, Pelestarian dan Pelayanan Perpustakaan"
+    ]
+  },
+  {
+    "opd": "DINAS PERTANIAN DAN PANGAN",
+    "unitKerjaList": [
+      "DINAS PERTANIAN DAN PANGAN (Sekretariat / Induk)",
+      "UPTD BALAI BENIH DAN PALAWIJA",
+      "UPTD BALAI PEMBIBITAN DAN HORTIKULTURA",
+      "UPTD BALAI PEMBIBITAN PERKEBUNAN",
+      "UPTD BREEDING CENTRE",
+      "UPTD INSEMINASI",
+      "UPTD KESEHATAN HEWAN",
+      "UPTD RUMAH POTONG HEWAN DAN PASAR HEWAN"
+    ]
+  },
+  {
+    "opd": "DINAS PERUMAHAN, PERMUKIMAN DAN PERTANAHAN",
+    "unitKerjaList": [
+      "DINAS PERUMAHAN, PERMUKIMAN DAN PERTANAHAN"
+    ]
+  },
+  {
+    "opd": "Dinas Sosial",
+    "unitKerjaList": [
+      "Dinas Sosial"
+    ]
+  },
+  {
+    "opd": "DINAS TRANSMIGRASI, TENAGA KERJA, ENERGI DAN SUMBER DAYA MINERAL",
+    "unitKerjaList": [
+      "DINAS TRANSMIGRASI, TENAGA KERJA, ENERGI DAN SUMBER DAYA MINERAL"
+    ]
+  },
+  {
+    "opd": "Inspektorat Daerah",
+    "unitKerjaList": [
+      "Inspektorat Daerah"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Alu",
+    "unitKerjaList": [
+      "Kantor Kecamatan Alu (Sekretariat / Induk)",
+      "Kantor Kelurahan Petoosang"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Anreapi",
+    "unitKerjaList": [
+      "Kantor Kecamatan Anreapi (Sekretariat / Induk)",
+      "Kantor Kelurahan Anreapi"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Balanipa",
+    "unitKerjaList": [
+      "Kantor Kecamatan Balanipa"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Binuang",
+    "unitKerjaList": [
+      "Kantor Kecamatan Binuang (Sekretariat / Induk)",
+      "Kantor Kelurahan Amassangan"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Bulo",
+    "unitKerjaList": [
+      "Kantor Kecamatan Bulo"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Campalagian",
+    "unitKerjaList": [
+      "Kantor Kecamatan Campalagian (Sekretariat / Induk)",
+      "Kantor Kelurahan Pappang"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Limboro",
+    "unitKerjaList": [
+      "Kantor Kecamatan Limboro (Sekretariat / Induk)",
+      "Kantor Kelurahan Limboro"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Luyo",
+    "unitKerjaList": [
+      "Kantor Kecamatan Luyo (Sekretariat / Induk)",
+      "Kantor Kelurahan Batupanga"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Mapilli",
+    "unitKerjaList": [
+      "Kantor Kecamatan Mapilli (Sekretariat / Induk)",
+      "Kantor Kelurahan Mapilli"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Matakali",
+    "unitKerjaList": [
+      "Kantor Kecamatan Matakali (Sekretariat / Induk)",
+      "Kantor Kelurahan Matakali"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Matangnga",
+    "unitKerjaList": [
+      "Kantor Kecamatan Matangnga (Sekretariat / Induk)",
+      "Kantor Kelurahan Matangnga"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Polewali",
+    "unitKerjaList": [
+      "Kantor Kecamatan Polewali (Sekretariat / Induk)",
+      "Kantor Kelurahan Darma",
+      "Kantor Kelurahan Lantora",
+      "Kantor Kelurahan Madatte",
+      "Kantor Kelurahan Manding",
+      "Kantor Kelurahan Pekkabata",
+      "Kantor Kelurahan Polewali",
+      "Kantor Kelurahan Sulewatang",
+      "Kantor Kelurahan Takatidung",
+      "Kantor Kelurahan Wattang"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Tapango",
+    "unitKerjaList": [
+      "Kantor Kecamatan Tapango (Sekretariat / Induk)",
+      "Kantor Kelurahan Pelitakan"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Tinambung",
+    "unitKerjaList": [
+      "Kantor Kecamatan Tinambung (Sekretariat / Induk)",
+      "Kantor Kelurahan Tinambung"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Tubbi Taramanu",
+    "unitKerjaList": [
+      "Kantor Kecamatan Tubbi Taramanu (Sekretariat / Induk)",
+      "Kantor Kelurahan Taramanu"
+    ]
+  },
+  {
+    "opd": "Kantor Kecamatan Wonomulyo",
+    "unitKerjaList": [
+      "Kantor Kecamatan Wonomulyo (Sekretariat / Induk)",
+      "Kantor Kelurahan Sidodadi"
+    ]
+  },
+  {
+    "opd": "RSUD Hajjah Andi Depu",
+    "unitKerjaList": [
+      "RSUD Hajjah Andi Depu"
+    ]
+  },
+  {
+    "opd": "SATUAN POLISI PAMONG PRAJA",
+    "unitKerjaList": [
+      "SATUAN POLISI PAMONG PRAJA (Sekretariat / Induk)",
+      "UPTD PEMADAM KEBAKARAN"
+    ]
+  },
+  {
+    "opd": "Sekretariat Daerah",
+    "unitKerjaList": [
+      "Sekretariat Daerah (Sekretariat / Induk)",
+      "Asisten Perekonomian dan Pembangunan",
+      "Asisten Pemerintahan dan Kesejahteraan Rakyat",
+      "Asisten Administrasi Umum"
+    ]
+  },
+  {
+    "opd": "Sekretariat Dewan Perwakilan Rakyat Daerah",
+    "unitKerjaList": [
+      "Sekretariat Dewan Perwakilan Rakyat Daerah"
+    ]
+  }
+]
