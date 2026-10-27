@@ -699,11 +699,11 @@ const LoginPage = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
 
   return (
     <div className="min-h-screen relative font-sans text-white overflow-x-hidden flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-zinc-950">
-      {/* 1. Grand Architectural Background Image */}
+      {/* 1. Grand Architectural Background Image - Kantor Bupati Polewali Mandar */}
       <div 
         className="fixed inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-1000 scale-105"
         style={{
-          backgroundImage: `url('/assets/aistudio/ChatGPT_Image_1_Okt_2026__09.52.44_6091e290.png')`
+          backgroundImage: `url('/assets/aistudio/images_f0d34c5c.jpg')`
         }}
       />
 
@@ -7399,7 +7399,7 @@ export default function App() {
         {/* Subtle Architectural Landmark Watermark & Warm Golden Ambient Glow */}
         <div 
           className="fixed inset-0 pointer-events-none opacity-[0.03] bg-cover bg-center bg-no-repeat z-0" 
-          style={{ backgroundImage: `url('/assets/aistudio/ChatGPT_Image_1_Okt_2026__09.52.44_6091e290.png')` }}
+          style={{ backgroundImage: `url('/assets/aistudio/images_f0d34c5c.jpg')` }}
         />
         <div className="fixed top-0 right-0 w-[550px] h-[550px] bg-yellow-400/10 rounded-full blur-[140px] pointer-events-none z-0" />
         <div className="fixed bottom-0 left-0 w-[450px] h-[450px] bg-amber-400/10 rounded-full blur-[120px] pointer-events-none z-0" />
